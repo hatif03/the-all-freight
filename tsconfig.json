@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "Wayfinder-main", "freight-room-main", "service"]
+  "exclude": ["node_modules", "service"]
 }

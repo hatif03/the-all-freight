@@ -6,7 +6,7 @@
 - Before starting a non-trivial chunk of work, write a short plan to `.agent/plans/<slug>.md` (what's about to change, why). Once done, move it to `.agent/done/`.
 - For every architectural pivot (not routine feature work — a change to *how* something fundamentally works), write a short ADR to `.agent/records/<slug>.md` with `Context` / `Decision` / `Consequences` sections.
 - Commits: conventional-commit format (`feat:`, `fix:`, `refactor:`, `docs:`, ...); call out breaking changes and new env vars in the body.
-- Never reference prior/reference projects by name in anything tracked by this repo (README, this file, code comments, UI copy, commit messages). They exist on disk only as gitignored reference material.
+- Never reference prior/reference projects by name in anything tracked by this repo (README, this file, code comments, UI copy, commit messages). The two source projects this was originally built from were kept on disk as gitignored reference material during that build and have since been deleted (their purpose served, and backed up elsewhere) — nothing in this repo should assume they still exist.
 
 ## Architecture
 
