@@ -1,0 +1,10 @@
+[project]
+name = "sentinel"
+version = "0.1.0"
+description = "Sentinel Agent Coordinator"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"sentinel" = "."}
+packages = ["sentinel"]

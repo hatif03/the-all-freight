@@ -1,0 +1,10 @@
+[project]
+name = "carrier"
+version = "0.1.0"
+description = "Carrier Counterpart Agent (PydanticAI)"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"carrier" = "."}
+packages = ["carrier"]

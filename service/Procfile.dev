@@ -1,0 +1,9 @@
+backend: cd backend && uv run uvicorn main:app --host 0.0.0.0 --port 8000
+detector: cd backend && uv run python detector.py
+sentinel: cd agents && PYTHONPATH=../backend:.. uv run python sentinel/main.py
+logistics: cd agents && PYTHONPATH=../backend:.. uv run python logistics/main.py
+carrier: cd agents && PYTHONPATH=../backend:.. uv run python carrier/main.py
+finance: cd agents && PYTHONPATH=../backend:.. uv run python finance/main.py
+procurement: cd agents && PYTHONPATH=../backend:.. uv run python procurement/main.py
+customer_impact: cd agents && PYTHONPATH=../backend:.. uv run python customer_impact/main.py
+dissent: cd agents && PYTHONPATH=../backend:.. uv run python dissent/main.py

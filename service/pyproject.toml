@@ -1,0 +1,31 @@
+[project]
+name = "ops-room"
+version = "0.1.0"
+description = "The All Freight — ops room agents monorepo"
+requires-python = ">=3.12"
+dependencies = [
+    # Every agent imports backend/database.py + backend/models.py (via
+    # PYTHONPATH, see Makefile/Procfile.dev) for room-bus/DB access, so this
+    # shared workspace env needs the backend's DB stack too, not just the
+    # per-framework agent libraries below.
+    "sqlalchemy>=2.0.50",
+    "asyncpg>=0.29.0",
+    "pydantic-settings>=2.14.1",
+    "redis>=5.0.0",
+    "python-dotenv>=1.0.0",
+    "openai>=1.50.0",
+    "langgraph>=0.2.0",
+    "langchain-openai>=0.2.0",
+    "pydantic-ai>=0.0.20",
+    "crewai>=1.14.7",
+    "httpx>=0.27.0",
+]
+
+[tool.uv]
+managed = true
+
+[tool.setuptools]
+packages = []
+
+[tool.uv.workspace]
+members = ["agents/*"]

@@ -1,0 +1,10 @@
+[project]
+name = "room-bus"
+version = "0.1.0"
+description = "Self-hosted room bus (Postgres + Redis) replacing a third-party coordination SaaS"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"room_bus" = "."}
+packages = ["room_bus"]

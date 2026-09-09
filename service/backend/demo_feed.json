@@ -1,0 +1,187 @@
+[
+  {
+    "kind": "room_created",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:15.788139+00:00",
+    "payload": {
+      "incident_id": 14,
+      "vessel": "MAERSK DAMIETTA",
+      "port": "Los Angeles"
+    }
+  },
+  {
+    "kind": "agent_recruited",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:18.788139+00:00",
+    "payload": {
+      "role": "logistics",
+      "agent_id": "demo-logistics",
+      "framework": "LangGraph",
+      "status": "active"
+    }
+  },
+  {
+    "kind": "agent_recruited",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:19.788139+00:00",
+    "payload": {
+      "role": "carrier",
+      "agent_id": "demo-carrier",
+      "framework": "PydanticAI",
+      "status": "active"
+    }
+  },
+  {
+    "kind": "agent_recruited",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:20.788139+00:00",
+    "payload": {
+      "role": "finance",
+      "agent_id": "demo-finance",
+      "framework": "PydanticAI",
+      "status": "active"
+    }
+  },
+  {
+    "kind": "agent_recruited",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:21.788139+00:00",
+    "payload": {
+      "role": "procurement",
+      "agent_id": "demo-procurement",
+      "framework": "CrewAI",
+      "status": "active"
+    }
+  },
+  {
+    "kind": "agent_recruited",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:22.788139+00:00",
+    "payload": {
+      "role": "customer_impact",
+      "agent_id": "demo-customer_impact",
+      "framework": "PydanticAI",
+      "status": "active"
+    }
+  },
+  {
+    "kind": "agent_recruited",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:23.788139+00:00",
+    "payload": {
+      "role": "dissent",
+      "agent_id": "demo-dissent",
+      "framework": "PydanticAI",
+      "status": "active"
+    }
+  },
+  {
+    "kind": "message",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:27.788139+00:00",
+    "payload": {
+      "sender": "sentinel",
+      "text": "@logistics @procurement @customer_impact MAERSK DAMIETTA is stuck at anchor at Los Angeles; KUEHNE + NAGEL,INC.'s cargo is affected. Propose recovery options."
+    }
+  },
+  {
+    "kind": "message",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:35.788139+00:00",
+    "payload": {
+      "sender": "logistics",
+      "text": "@finance Proposing expedite (priority berth), reroute (Oakland, +36h), and hold. Please cost each against the Maersk tariff."
+    }
+  },
+  {
+    "kind": "option_added",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:39.788139+00:00",
+    "payload": {
+      "option_id": 59,
+      "proposer": "logistics",
+      "type": "expedite",
+      "feasibility": "High",
+      "eta_delta_hours": 0.0,
+      "cost_delta": 300.0
+    }
+  },
+  {
+    "kind": "option_added",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:41.788139+00:00",
+    "payload": {
+      "option_id": 60,
+      "proposer": "logistics",
+      "type": "reroute",
+      "feasibility": "Medium",
+      "eta_delta_hours": 36.0,
+      "cost_delta": 600.0
+    }
+  },
+  {
+    "kind": "option_added",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:43.788139+00:00",
+    "payload": {
+      "option_id": 61,
+      "proposer": "carrier",
+      "type": "hold",
+      "feasibility": "Low",
+      "eta_delta_hours": 120.0,
+      "cost_delta": 2580.0
+    }
+  },
+  {
+    "kind": "message",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:49.788139+00:00",
+    "payload": {
+      "sender": "finance",
+      "text": "@sentinel Costed all three from the real Maersk US-import demurrage tariff (4 free days, tiered). Hold is by far the most expensive."
+    }
+  },
+  {
+    "kind": "message",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:58:55.788139+00:00",
+    "payload": {
+      "sender": "carrier",
+      "text": "@sentinel Carrier can support expedite if a terminal slot opens; otherwise the hold tariff applies per our published rates."
+    }
+  },
+  {
+    "kind": "phase_change",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:59:01.788139+00:00",
+    "payload": {
+      "phase": "evaluating"
+    }
+  },
+  {
+    "kind": "message",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:59:07.788139+00:00",
+    "payload": {
+      "sender": "dissent",
+      "text": "@sentinel Objection (material): expedite assumes an unconfirmed terminal overtime slot; if it falls through we revert to a costly multi-day hold."
+    }
+  },
+  {
+    "kind": "phase_change",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:59:13.788139+00:00",
+    "payload": {
+      "phase": "awaiting_approval"
+    }
+  },
+  {
+    "kind": "message",
+    "room_id": "demo-showcase-room",
+    "ts": "2026-06-19T03:59:17.788139+00:00",
+    "payload": {
+      "sender": "sentinel",
+      "text": "Quorum recommends EXPEDITE (lowest cost, no delay), with a recorded material dissent. Awaiting Ops Manager approval."
+    }
+  }
+]

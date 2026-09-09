@@ -1,0 +1,10 @@
+[project]
+name = "procurement"
+version = "0.1.0"
+description = "Procurement Agent"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"procurement" = "."}
+packages = ["procurement"]
