@@ -12,6 +12,17 @@
   --danger: #e11d48;
   --warn: #d97706;
   --ok: #16a34a;
+
+  /* Ops room console — a distinct dark "war room" surface. Semantic colors
+     (approve/reject/warn/live) reuse the tokens above; these are only the
+     dark-surface/text shades the reference theme needed that don't exist
+     in the light planning-flow palette. */
+  --ops-bg: #0b1016;
+  --ops-surface: #10161f;
+  --ops-line: #1f2a37;
+  --ops-ink: #eef2f7;
+  --ops-mute: #8b9aac;
+  --ops-faint: #5f6e80;
 }
 
 @theme inline {
@@ -26,6 +37,12 @@
   --color-danger: var(--danger);
   --color-warn: var(--warn);
   --color-ok: var(--ok);
+  --color-ops-bg: var(--ops-bg);
+  --color-ops-surface: var(--ops-surface);
+  --color-ops-line: var(--ops-line);
+  --color-ops-ink: var(--ops-ink);
+  --color-ops-mute: var(--ops-mute);
+  --color-ops-faint: var(--ops-faint);
   --font-mono: var(--font-geist-mono);
   --font-sans: var(--font-geist-sans);
 }
@@ -85,3 +102,51 @@ body {
 .dep-node:hover {
   filter: brightness(1.25);
 }
+
+/* --- Ops console (src/app/ops) --- */
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+@keyframes ops-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.animate-ops-blink {
+  animation: ops-blink 1.6s infinite;
+}
+
+.ops-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.ops-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.ops-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--ops-line);
+  border-radius: 4px;
+}
+
+/* Disrupted-vessel marker on the ops vessel map */
+@keyframes ops-vessel-pulse {
+  0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.7); }
+  70% { transform: scale(1.1); box-shadow: 0 0 0 12px rgba(225, 29, 72, 0); }
+  100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(225, 29, 72, 0); }
+}
+.ops-vessel-marker {
+  animation: ops-vessel-pulse 2s infinite;
+  border-radius: 50%;
+  border: 2px solid var(--danger);
+  background-color: var(--danger);
+}
+
+/* MapLibre popup — match the ops dark console palette */
+.maplibregl-popup-content {
+  background-color: var(--ops-surface) !important;
+  color: var(--ops-ink) !important;
+  border: 1px solid var(--ops-line) !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5) !important;
+  padding: 12px 16px !important;
+  font-family: var(--font-geist-sans), sans-serif !important;
+}
+.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--ops-line) !important; }
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--ops-line) !important; }
+.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--ops-line) !important; }
+.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--ops-line) !important; }
+.maplibregl-popup-close-button { color: var(--ops-mute) !important; padding: 4px 8px !important; }
+.maplibregl-popup-close-button:hover { background-color: transparent !important; color: var(--ops-ink) !important; }
