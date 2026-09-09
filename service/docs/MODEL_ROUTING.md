@@ -11,7 +11,7 @@ Rationale for how LLMs are assigned across the ops-room agents. Implemented in
 | **Finance** | `mistral-nemo` | AI/ML API | plain OpenAI-SDK client | Cost-effective, modern 12B model, adequate for structured text and the basic numeric reasoning needed to annotate demurrage/detention cost deltas. |
 | **Carrier** | `claude-sonnet-4-6` | AI/ML API | PydanticAI | Strong conversational/negotiation capability for a carrier counter-position grounded in tariff + FMC facts. |
 | **Dissent** | `google/gemma-3-4b-it` | AI/ML API | plain OpenAI-SDK client | A distinct, lightweight open-weights model — a genuinely different "opinion" than the negotiating agents, not the same model arguing with itself. |
-| **Procurement** | `gpt-4o` | AI/ML API | CrewAI | Reserved for multi-step reasoning over alternate-supply/substitution options; CrewAI's task-role structure fits a specialist sourcing role. |
+| **Procurement** | `gpt-4o` | AI/ML API | CrewAI | Proposes alternate-supply/substitution options for at-risk cargo; CrewAI's task-role structure fits a specialist sourcing role. |
 | **Customer-Impact** | `gpt-4o-mini` | AI/ML API | plain OpenAI-SDK client | Fast, cheap model for structured SLA-impact assessments and stakeholder-comms drafts — doesn't need frontier capability. |
 | **Event-severity classifier** | `Qwen2.5-1.5B-Instruct` | Featherless | standalone | Small OSS model dedicated to one narrow job: scoring `DisruptionEvent.severity` and extracting entities from a detector event, at low latency/cost. |
 

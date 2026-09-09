@@ -1,7 +1,7 @@
 [project]
 name = "procurement"
 version = "0.1.0"
-description = "Procurement Agent"
+description = "Procurement Agent (CrewAI)"
 requires-python = ">=3.12"
 dependencies = []
 
