@@ -78,7 +78,7 @@ def check_keys(probe: bool) -> bool:
     print("\nData / partner keys:")
     required = {
         "AISSTREAM_API_KEY": "live AIS",
-        "GEMINI_API_KEY": "Gemini (logistics/finance/procurement/customer_impact)",
+        "GCP_PROJECT_ID": "Vertex AI Gemini (logistics/finance/procurement/customer_impact)",
         "K2THINK_API_KEY": "K2 Think (carrier/dissent reasoning)",
         "FEATHERLESS_KEY": "Featherless (classifier)",
         "ANAKIN_API_KEY": "Anakin (tariff fetch + BoL live lookup)",
@@ -90,11 +90,8 @@ def check_keys(probe: bool) -> bool:
         else:
             print(f"  {BAD} {var:<20} MISSING  ({label})")
             ok = False
-    if probe and os.getenv("GEMINI_API_KEY"):
-        ok = _probe_openai_compatible(
-            "Gemini", os.getenv("GEMINI_API_KEY"),
-            "https://generativelanguage.googleapis.com/v1beta/openai/", "gemini-3.6-flash",
-        ) and ok
+    if probe and os.getenv("GCP_PROJECT_ID"):
+        ok = _probe_vertex() and ok
     if probe and os.getenv("K2THINK_API_KEY"):
         ok = _probe_openai_compatible(
             "K2 Think", os.getenv("K2THINK_API_KEY"),
@@ -123,10 +120,27 @@ def _probe_openai_compatible(label: str, key: str, base_url: str, model: str) ->
         return False
 
 
+def _probe_vertex() -> bool:
+    # Vertex AI takes an OAuth2 access token (via Application Default
+    # Credentials), not a static key, so this can't reuse _probe_openai_compatible.
+    try:
+        sys.path.insert(0, str(ROOT / "agents"))
+        from model_router import client_for
+        client, model = client_for("logistics")
+        client.chat.completions.create(
+            model=model, messages=[{"role": "user", "content": "ping"}], max_tokens=1
+        )
+        print(f"  {OK} Vertex AI (Gemini) live ({model})")
+        return True
+    except Exception as e:
+        print(f"  {WARN} Vertex AI (Gemini) probe failed: {str(e)[:160]}")
+        return False
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Ops-room readiness preflight check.")
     parser.add_argument("--probe-models", action="store_true",
-                        help="Make a 1-token call to Gemini, K2 Think, and Featherless to verify the keys work.")
+                        help="Make a 1-token call to Vertex AI (Gemini), K2 Think, and Featherless to verify credentials work.")
     args = parser.parse_args()
 
     print("=" * 60)

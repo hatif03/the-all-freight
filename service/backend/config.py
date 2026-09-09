@@ -8,7 +8,9 @@ class Settings(BaseSettings):
     AISSTREAM_API_KEY: Optional[str] = None
 
     # Models / partners
-    GEMINI_API_KEY: Optional[str] = None
+    GCP_PROJECT_ID: Optional[str] = None
+    GCP_LOCATION: str = "us-central1"
+    GEMINI_MODEL: str = "google/gemini-2.5-flash"
     K2THINK_API_KEY: Optional[str] = None
     FEATHERLESS_KEY: Optional[str] = None
     ANAKIN_API_KEY: Optional[str] = None

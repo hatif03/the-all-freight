@@ -21,13 +21,13 @@ import protocol
 
 ROLE = "customer_impact"
 
-# Global instances
-llm_client = None
-model_name = None
-
 
 async def process_customer_impact(room_id: int):
     print(f"[Customer-Impact Agent] Assessing customer impact in room {room_id}...")
+
+    # Built fresh on every call, not cached: Vertex AI access tokens expire
+    # after ~1 hour, and this agent process runs indefinitely.
+    llm_client, model_name = client_for("customer_impact")
 
     # 1. Resolve room context (affected parties / importers)
     affected_importers_text = ""
@@ -130,10 +130,7 @@ async def on_room_message(data: dict):
 
 
 async def main():
-    global llm_client, model_name
-
     print("Starting Customer-Impact Agent")
-    llm_client, model_name = client_for("customer_impact")
 
     print("\nCustomer-Impact Agent is online and listening. Press Ctrl+C to exit.")
     try:

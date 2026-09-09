@@ -23,15 +23,11 @@ def classify_event(event: dict) -> dict:
             - entities (dict): Extracted entities (e.g., vessel, port, delay, vessel_type).
     """
     api_key = os.getenv("FEATHERLESS_KEY")
-    if not api_key:
-        # Fallback to OPENAI_API_KEY for local testing/mocking
-        api_key = os.getenv("OPENAI_API_KEY")
-
     base_url = os.getenv("FEATHERLESS_BASE_URL", "https://api.featherless.ai/v1")
 
     # If no api_key is available, return a mock response for fallback/safety
     if not api_key:
-        print("[Classifier] [MOCK FALLBACK] FEATHERLESS_KEY (and fallback OPENAI_API_KEY) not set. Returning mock classification response.")
+        print("[Classifier] [MOCK FALLBACK] FEATHERLESS_KEY not set. Returning mock classification response.")
         return get_mock_response(event)
 
     client = OpenAI(

@@ -26,10 +26,6 @@ import protocol
 
 ROLE = "finance"
 
-# Global instances
-llm_client = None
-model_name = None
-
 
 async def process_logistics_option(room_id: int, content: str):
     print(f"[Finance Agent] Processing message in room {room_id}")
@@ -45,6 +41,10 @@ async def process_logistics_option(room_id: int, content: str):
         return
 
     print(f"[Finance Agent] Extracted option of type: {opt_msg.type}, ETA delta: {opt_msg.eta_delta_hours} hours")
+
+    # Built fresh on every call, not cached: Vertex AI access tokens expire
+    # after ~1 hour, and this agent process runs indefinitely.
+    llm_client, model_name = client_for("finance")
 
     # 1. Resolve room context (carrier, port, equipment type, and baseline delay)
     carrier_name = "Maersk"
@@ -199,10 +199,7 @@ async def on_room_message(data: dict):
 
 
 async def main():
-    global llm_client, model_name
-
     print("Starting Finance Agent")
-    llm_client, model_name = client_for("finance")
 
     print("\nFinance Agent is online and listening. Press Ctrl+C to exit.")
     try:

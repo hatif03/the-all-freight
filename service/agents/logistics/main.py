@@ -51,8 +51,6 @@ class LogisticsOptionsOutput(BaseModel):
     options: List[ProposedOptionModel] = Field(description="List of 1 to 2 concrete recovery options")
 
 
-# Global instances (configured in main)
-llm = None
 compiled_graph = None
 
 
@@ -63,7 +61,11 @@ async def generate_options_node(state: LogisticsState, config: RunnableConfig):
 
     messages = list(state["messages"])
 
-    # We use ChatOpenAI with structured output
+    # Built fresh on every call, not cached: Vertex AI access tokens expire
+    # after ~1 hour, and this agent process runs indefinitely (see
+    # model_router.py's docstring).
+    openai_client, model_name = client_for("logistics")
+    llm = ChatOpenAI(model=model_name, base_url=str(openai_client.base_url), api_key=openai_client.api_key)
     structured_llm = llm.with_structured_output(LogisticsOptionsOutput)
 
     print(f"[Logistics Graph] Invoking LLM for structured options...")
@@ -135,19 +137,12 @@ async def on_room_message(data: dict):
 
 
 async def main():
-    global llm, compiled_graph
+    global compiled_graph
 
     print("Starting Logistics Agent")
 
-    # Configure ChatOpenAI LLM via the per-role model router (see model_router.py)
-    openai_client, model_name = client_for("logistics")
-    llm = ChatOpenAI(
-        model=model_name,
-        base_url=str(openai_client.base_url),
-        api_key=openai_client.api_key
-    )
-
-    # Build the LangGraph workflow
+    # Build the LangGraph workflow (the LLM itself is constructed fresh inside
+    # generate_options_node on every invocation — see its comment)
     workflow = StateGraph(LogisticsState)
     workflow.add_node("generate_options", generate_options_node)
     workflow.add_edge(START, "generate_options")
