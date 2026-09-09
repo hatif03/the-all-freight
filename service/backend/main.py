@@ -26,6 +26,7 @@ from pydantic import BaseModel
 # tariff). Options without a computed cost get no source link (C1: no fake data).
 # Defined once in tariff_fetcher.py (the live-fetch module) and reused here.
 from tariff_fetcher import MAERSK_IMPORT_TARIFF_URL, refresh_tariffs
+import vertex_client
 
 app = FastAPI(title="Ops Room Backend")
 
@@ -541,3 +542,41 @@ async def refresh_tariffs_endpoint():
     """
     loaded = await refresh_tariffs()
     return {"loaded": loaded, "source_url": MAERSK_IMPORT_TARIFF_URL}
+
+
+class LLMCompletionRequest(BaseModel):
+    system: str
+    user: str
+    json_mode: bool = False
+    temperature: Optional[float] = None
+    model: Optional[str] = None
+
+
+@app.post("/llm/complete")
+async def llm_complete(req: LLMCompletionRequest):
+    """Proxy planning-flow LLM calls through this VM's Vertex AI credentials.
+
+    The Next.js app is deployed on Vercel, which has no Application Default
+    Credentials (no GCP metadata server) — rather than mint and manage a
+    service-account key for it, it calls this endpoint instead, and this VM
+    (which already has clean ADC via its attached service account) makes the
+    actual Vertex call. No GCP credentials of any kind live in Vercel.
+    """
+    model = req.model or vertex_client.DEFAULT_MODEL
+    kwargs: dict = {}
+    if req.temperature is not None:
+        kwargs["temperature"] = req.temperature
+    if req.json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
+    try:
+        response = vertex_client.client().chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": req.system},
+                {"role": "user", "content": req.user},
+            ],
+            **kwargs,
+        )
+        return {"result": response.choices[0].message.content}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
