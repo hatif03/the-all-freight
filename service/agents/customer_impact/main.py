@@ -10,13 +10,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # Load environment variables
 load_dotenv(dotenv_path=os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env")))
 
-# Configure OpenAI client fallback
-aiml_key = os.getenv("AIMLAPI_KEY")
-if aiml_key and not os.getenv("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = aiml_key
-    os.environ["OPENAI_BASE_URL"] = "https://api.aimlapi.com/v1"
-    print("[Customer-Impact] Configured OpenAI client fallback.")
-
 from database import SessionLocal
 from models import Incident, RecoveryOption, DisruptionEvent, AffectedParty
 from sqlalchemy import select

@@ -14,16 +14,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # Load environment variables
 load_dotenv(dotenv_path=os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env")))
 
-# Configure OpenAI client to use AIMLAPI endpoint as fallback if no standard OPENAI_API_KEY
-aiml_key = os.getenv("AIMLAPI_KEY")
-if aiml_key and not os.getenv("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = aiml_key
-    os.environ["OPENAI_BASE_URL"] = "https://api.aimlapi.com/v1"
-    print("[Finance] Configured OpenAI client to use AIMLAPI endpoint as fallback.")
-elif not os.getenv("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = "mock-key-for-startup"
-    print("[Finance] Dummy OPENAI_API_KEY configured for startup.")
-
 from database import SessionLocal
 from models import Incident, RecoveryOption, DisruptionEvent, Vessel, BolRecord
 from cost import compute_dd_exposure

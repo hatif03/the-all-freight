@@ -1,31 +1,17 @@
-// Thin OpenAI wrapper used by the agent layer.
-// Centralizes the client, model selection, and a JSON-structured-output helper
-// with a deterministic fallback so the pipeline never hard-fails.
+// Thin LLM wrapper used by the agent layer, talking to Gemini's OpenAI-compatible
+// endpoint via the `openai` SDK. Centralizes the client, model selection, and a
+// JSON-structured-output helper with a deterministic fallback so the pipeline
+// never hard-fails.
 
 import OpenAI from "openai";
 
-const apiKey = process.env.OPENAI_API_KEY || "";
-const baseURL = process.env.OPENAI_BASE_URL || undefined; // e.g. Azure v1 endpoint
-export const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
-export const hasOpenAI = Boolean(apiKey);
+const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/";
 
-// GPT-5 family on Azure rejects non-default `temperature`; omit it for those.
-const isGpt5 = /gpt-5/i.test(MODEL);
-const supportsTemperature = !isGpt5;
-// GPT-5 reasoning is slow; default to "low" so the multi-agent pipeline stays fast.
-// Override with OPENAI_REASONING_EFFORT (none|low|medium|high|xhigh).
-const reasoningEffort = process.env.OPENAI_REASONING_EFFORT || "low";
-const gpt5Extra = isGpt5 ? { reasoning_effort: reasoningEffort } : {};
+const apiKey = process.env.GEMINI_API_KEY || "";
+export const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+export const hasLLM = Boolean(apiKey);
 
-const client = apiKey
-  ? new OpenAI({
-      apiKey,
-      baseURL,
-      // Azure's OpenAI-compatible endpoint authenticates with an `api-key`
-      // header in addition to the standard Authorization bearer.
-      defaultHeaders: baseURL ? { "api-key": apiKey } : undefined,
-    })
-  : null;
+const client = apiKey ? new OpenAI({ apiKey, baseURL: GEMINI_BASE_URL }) : null;
 
 /**
  * Ask the model for a JSON object matching the described shape.
@@ -40,8 +26,7 @@ export async function jsonCompletion<T>(opts: {
   try {
     const res = await client.chat.completions.create({
       model: MODEL,
-      ...(supportsTemperature ? { temperature: 0.3 } : {}),
-      ...gpt5Extra,
+      temperature: 0.3,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: opts.system },
@@ -67,8 +52,7 @@ export async function textCompletion(opts: {
   try {
     const res = await client.chat.completions.create({
       model: MODEL,
-      ...(supportsTemperature ? { temperature: 0.4 } : {}),
-      ...gpt5Extra,
+      temperature: 0.4,
       messages: [
         { role: "system", content: opts.system },
         { role: "user", content: opts.user },

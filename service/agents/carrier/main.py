@@ -13,13 +13,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # Load environment variables
 load_dotenv(dotenv_path=os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env")))
 
-# We must adjust openai env variables if we use AIMLAPI as a routing partner
-aiml_key = os.getenv("AIMLAPI_KEY")
-if aiml_key and not os.getenv("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = aiml_key
-    os.environ["OPENAI_BASE_URL"] = "https://api.aimlapi.com/v1"
-    print("[Carrier] Configured Pydantic AI to use AIMLAPI endpoint as OpenAI fallback.")
-
 from database import SessionLocal
 from models import Incident, RecoveryOption, DisruptionEvent, Vessel, BolRecord
 from cost import compute_dd_exposure
@@ -27,8 +20,12 @@ from fmc_rules import fmc_dispute_facts_text
 from sqlalchemy import select
 
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic import BaseModel, Field
 from typing import Optional
+
+from model_router import client_for
 
 import room_bus
 import protocol
@@ -217,8 +214,12 @@ async def main():
 
     print("Starting Carrier Agent")
 
-    # Configure PydanticAI model (routed via AI/ML API; see model_router.py rationale)
-    model = "openai:claude-sonnet-4-6"
+    # Configure PydanticAI model via the per-role model router (K2 Think for Carrier).
+    openai_client, model_name = client_for("carrier")
+    model = OpenAIChatModel(
+        model_name,
+        provider=OpenAIProvider(api_key=openai_client.api_key, base_url=str(openai_client.base_url)),
+    )
     pydantic_agent = PydanticAgent(
         model,
         output_type=CarrierCounterPosition,

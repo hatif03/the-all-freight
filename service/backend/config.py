@@ -8,9 +8,9 @@ class Settings(BaseSettings):
     AISSTREAM_API_KEY: Optional[str] = None
 
     # Models / partners
-    AIMLAPI_KEY: Optional[str] = None
+    GEMINI_API_KEY: Optional[str] = None
+    K2THINK_API_KEY: Optional[str] = None
     FEATHERLESS_KEY: Optional[str] = None
-    OPENAI_API_KEY: Optional[str] = None
     ANAKIN_API_KEY: Optional[str] = None
 
     # Infra
