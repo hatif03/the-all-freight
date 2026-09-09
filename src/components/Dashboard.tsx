@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import {
   AlertTriangle,
   Anchor,
@@ -32,6 +33,7 @@ import {
   FileText,
   ListChecks,
   Minus,
+  Radio,
   Scale,
   Search,
   Ship,
@@ -55,6 +57,18 @@ const RouteMap = dynamic(() => import("./RouteMap").then((m) => m.RouteMap), {
 });
 
 const MAT_COLORS = ["#2dd4bf", "#38bdf8", "#a78bfa", "#f59e0b", "#f43f5e", "#22c55e"];
+
+// Keep in sync with service/backend/ports.py — the only ports the ops room actually watches.
+const MONITORED_PORTS: { name: string; keywords: string[] }[] = [
+  { name: "Los Angeles / Long Beach", keywords: ["los angeles", "long beach"] },
+  { name: "New York / New Jersey", keywords: ["new york", "new jersey"] },
+  { name: "Singapore", keywords: ["singapore"] },
+];
+function matchMonitoredPort(recommended: string | undefined): string | null {
+  if (!recommended) return null;
+  const lower = recommended.toLowerCase();
+  return MONITORED_PORTS.find((p) => p.keywords.some((k) => lower.includes(k)))?.name ?? null;
+}
 
 // Best-effort parse of a free-form ship date ("September 2026", "2026-09-01").
 function parseShipDate(s: string): Date | null {
@@ -908,6 +922,23 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
               <p className="text-[12px] text-foreground/80 mt-1 leading-snug">{result.portRecommendation.rationale}</p>
             </div>
           </div>
+
+          {(() => {
+            const monitored = matchMonitoredPort(result.portRecommendation.recommended);
+            if (!monitored) return null;
+            return (
+              <Link
+                href="/ops"
+                className="rounded-xl border border-accent-2/30 bg-accent-2/10 p-3.5 mb-4 flex items-center gap-3 hover:border-accent-2/50 transition"
+              >
+                <Radio className="size-5 text-accent-2 shrink-0" />
+                <div className="text-sm text-foreground/80">
+                  The All Freight actively monitors <span className="font-semibold text-accent-2">{monitored}</span> for live disruptions —{" "}
+                  <span className="text-accent-2 underline underline-offset-2">open the Live Ops Room</span>
+                </div>
+              </Link>
+            );
+          })()}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[...result.portRecommendation.options]

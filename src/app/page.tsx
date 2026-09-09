@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { Header } from "@/components/Header";
 import { AnalyzeForm, PRESETS } from "@/components/AnalyzeForm";
 import { IntakeChat } from "@/components/IntakeChat";
 import { AgentConsole, type AgentState } from "@/components/AgentConsole";
@@ -105,8 +104,6 @@ export default function Home() {
   };
 
   return (
-    <>
-      <Header dataMode={result?.dataMode} />
       <main className="flex-1 mx-auto w-full max-w-7xl px-5">
         {phase === "idle" && (
           <div className="min-h-[calc(100vh-3.5rem)] flex flex-col items-center justify-center py-10">
@@ -170,6 +167,5 @@ export default function Home() {
           </div>
         )}
       </main>
-    </>
   );
 }

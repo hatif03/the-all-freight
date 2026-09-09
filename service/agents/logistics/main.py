@@ -13,9 +13,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # Load environment variables
 load_dotenv(dotenv_path=os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env")))
 
+from datetime import datetime, timezone
+
 from database import SessionLocal
 from models import Incident, RecoveryOption
 from sqlalchemy import select
+from events import publish_room_event
 
 from model_router import client_for
 from langchain_openai import ChatOpenAI
@@ -96,6 +99,14 @@ async def generate_options_node(state: LogisticsState, config: RunnableConfig):
                 options_persisted.append(opt)
             await session.commit()
             print(f"[Logistics Graph] Successfully persisted {len(options_persisted)} options to DB.")
+            # Tell the dashboard to refetch — it treats this as a pure "something
+            # changed" signal, not a payload to read, so no per-option detail needed.
+            await publish_room_event(
+                kind="option_added",
+                room_id=str(room_id),
+                ts=datetime.now(timezone.utc),
+                payload={"proposer": "logistics", "count": len(options_persisted)},
+            )
         else:
             print(f"[Logistics Graph] WARNING: Incident for room {room_id} not found in DB. Options will not be persisted.")
             options_persisted = result.options

@@ -141,7 +141,7 @@ export function VesselMap({
   }, [disruptedMmsi]);
 
   return (
-    <div className="bg-ops-surface border border-ops-line rounded-2xl overflow-hidden relative">
+    <div className="bg-ops-surface/70 border border-ops-line rounded-2xl overflow-hidden relative">
       <div ref={containerRef} className="w-full h-[300px] md:h-[340px]" />
 
       <div className="absolute top-3.5 left-3.5 text-[10px] mono text-ops-mute tracking-wider pointer-events-none">

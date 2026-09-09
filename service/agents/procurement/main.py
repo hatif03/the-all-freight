@@ -13,9 +13,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # Load environment variables
 load_dotenv(dotenv_path=os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env")))
 
+from datetime import datetime, timezone
+
 from database import SessionLocal
 from models import Incident, RecoveryOption, DisruptionEvent, AffectedParty
 from sqlalchemy import select
+from events import publish_room_event
 
 from model_router import client_for
 from crewai import Agent, Task, Crew, Process, LLM
@@ -134,6 +137,12 @@ Respond with ONLY a fenced json code block in exactly this shape:
             session.add(option_row)
             await session.commit()
             print("[Procurement Agent] Persisted alternate-supply option to DB.")
+            await publish_room_event(
+                kind="option_added",
+                room_id=str(room_id),
+                ts=datetime.now(timezone.utc),
+                payload={"proposer": "procurement", "count": 1},
+            )
         else:
             print(f"[Procurement Agent] WARNING: Incident for room {room_id} not found in DB. Option will not be persisted.")
 

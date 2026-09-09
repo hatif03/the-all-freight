@@ -10,9 +10,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # Load environment variables
 load_dotenv(dotenv_path=os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env")))
 
+from datetime import datetime, timezone
+
 from database import SessionLocal
 from models import Incident, RecoveryOption, DisruptionEvent, AffectedParty
 from sqlalchemy import select
+from events import publish_room_event
 
 from model_router import client_for
 
@@ -107,6 +110,12 @@ Respond ONLY with a valid JSON block inside a Markdown code block like this:
                     session.add(option_row)
                     await session.commit()
                     print(f"[Customer-Impact] Persisted customer impact assessment to DB.")
+                    await publish_room_event(
+                        kind="option_added",
+                        room_id=str(room_id),
+                        ts=datetime.now(timezone.utc),
+                        payload={"proposer": "customer_impact", "count": 1},
+                    )
 
             # 4. Format and post response back to room, mentioning sentinel
             text = "Customer-Impact agent has assessed SLA exposure and drafted stakeholder communications."

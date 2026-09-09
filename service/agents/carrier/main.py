@@ -13,11 +13,14 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # Load environment variables
 load_dotenv(dotenv_path=os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env")))
 
+from datetime import datetime, timezone
+
 from database import SessionLocal
 from models import Incident, RecoveryOption, DisruptionEvent, Vessel, BolRecord
 from cost import compute_dd_exposure
 from fmc_rules import fmc_dispute_facts_text
 from sqlalchemy import select
+from events import publish_room_event
 
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -171,6 +174,12 @@ Ground your response only in the provided tariff rows and FMC facts. Do not inve
             session.add(option_row)
             await session.commit()
             print(f"[Carrier Flow] Saved counter-position to DB.")
+            await publish_room_event(
+                kind="option_added",
+                room_id=str(room_id),
+                ts=datetime.now(timezone.utc),
+                payload={"proposer": "carrier", "count": 1},
+            )
         else:
             print(f"[Carrier Flow] WARNING: Incident not found in DB. Counter-position will not be saved.")
 

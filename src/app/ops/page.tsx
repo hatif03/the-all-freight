@@ -13,13 +13,12 @@ import {
   RefreshCw,
   Info,
 } from "lucide-react";
-import { Header } from "@/components/Header";
 
 // MapLibre touches the DOM/window at map-construction time, so load it client-side only.
 const VesselMap = dynamic(() => import("@/components/VesselMap").then((m) => m.VesselMap), {
   ssr: false,
   loading: () => (
-    <div className="bg-ops-surface border border-ops-line rounded-2xl h-[300px] md:h-[340px] grid place-items-center text-ops-mute text-xs mono">
+    <div className="bg-ops-surface/70 border border-ops-line rounded-2xl h-[300px] md:h-[340px] grid place-items-center text-ops-mute text-xs mono">
       Loading vessel map…
     </div>
   ),
@@ -313,50 +312,51 @@ export default function OpsPage() {
   const isLive = status.includes("Live");
 
   return (
-    <>
-      <Header />
-      <main className="min-h-screen bg-ops-bg text-ops-ink font-sans">
-        {/* Ops-specific status bar — incident context, live-feed indicators, refresh */}
-        <div className="sticky top-14 z-20 flex items-center justify-between gap-4 px-5 md:px-6 py-3 border-b border-ops-line bg-ops-surface/95 backdrop-blur">
-          <div className="flex items-center gap-2 mono text-xs text-ops-mute min-w-0">
-            <span className="text-ops-faint">incident</span>
-            <span className="text-ops-ink font-semibold">{snapshot.incident ? `#${snapshot.incident.id}` : "—"}</span>
-            <span className="text-ops-faint">/</span>
-            <span className="truncate">{snapshot.event?.port || "No active incident"}</span>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <div className="hidden sm:flex items-center gap-2 bg-ok/8 border border-ok/25 px-3 py-1.5 rounded-lg">
-              <span className="relative w-[7px] h-[7px]">
-                <span className="absolute inset-0 rounded-full bg-ok" />
-                <span className="absolute inset-0 rounded-full bg-ok pulse-ring" />
-              </span>
-              <span className="mono text-[11px] text-ok font-semibold">LIVE AIS</span>
+      <main className="flex-1 text-ops-ink font-sans">
+      <div className="mx-auto max-w-7xl px-5 py-5">
+        {/* Incident context + phase card — one card instead of two stacked sticky bars,
+            matching the landing page's card conventions (rounded-2xl, translucent panel). */}
+        <div className="rounded-2xl border border-border bg-panel/70 mb-5">
+          <div className="flex items-center justify-between gap-4 px-4 md:px-5 py-3 border-b border-ops-line">
+            <div className="flex items-center gap-2 mono text-xs text-ops-mute min-w-0">
+              <span className="text-ops-faint">incident</span>
+              <span className="text-ops-ink font-semibold">{snapshot.incident ? `#${snapshot.incident.id}` : "—"}</span>
+              <span className="text-ops-faint">/</span>
+              <span className="truncate">{snapshot.event?.port || "No active incident"}</span>
             </div>
 
-            <div
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
-                isLive ? "bg-accent-2/8 border-accent-2/25" : "bg-warn/8 border-warn/25"
-              }`}
-            >
-              <span className={`w-[7px] h-[7px] rounded-full animate-ops-blink ${isLive ? "bg-accent-2" : "bg-warn"}`} />
-              <span className={`mono text-[11px] font-semibold ${isLive ? "text-accent-2" : "text-warn"}`}>
-                {isLive ? "ROOM BUS CONNECTED" : "RECONNECTING"}
-              </span>
+            <div className="flex items-center gap-2.5">
+              <div className="hidden sm:flex items-center gap-2 bg-ok/8 border border-ok/25 px-3 py-1.5 rounded-lg">
+                <span className="relative w-[7px] h-[7px]">
+                  <span className="absolute inset-0 rounded-full bg-ok" />
+                  <span className="absolute inset-0 rounded-full bg-ok pulse-ring" />
+                </span>
+                <span className="mono text-[11px] text-ok font-semibold">LIVE AIS</span>
+              </div>
+
+              <div
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
+                  isLive ? "bg-accent/8 border-accent/25" : "bg-warn/8 border-warn/25"
+                }`}
+              >
+                <span className={`w-[7px] h-[7px] rounded-full animate-ops-blink ${isLive ? "bg-accent" : "bg-warn"}`} />
+                <span className={`mono text-[11px] font-semibold ${isLive ? "text-accent" : "text-warn"}`}>
+                  {isLive ? "ROOM BUS CONNECTED" : "RECONNECTING"}
+                </span>
+              </div>
+
+              <button
+                onClick={fetchActiveIncident}
+                title="Refresh data"
+                className="w-[34px] h-[34px] rounded-lg bg-ops-surface border border-ops-line flex items-center justify-center text-ops-mute hover:text-ops-ink transition-colors"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
             </div>
-
-            <button
-              onClick={fetchActiveIncident}
-              title="Refresh data"
-              className="w-[34px] h-[34px] rounded-lg bg-ops-surface border border-ops-line flex items-center justify-center text-ops-mute hover:text-ops-ink transition-colors"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
           </div>
-        </div>
 
-        {/* Phase stepper */}
-        <div className="px-5 md:px-6 py-4 border-b border-ops-line overflow-x-auto">
+          {/* Phase stepper */}
+          <div className="px-4 md:px-5 py-4 overflow-x-auto">
           <div className="flex items-center gap-0 min-w-max">
             {visiblePhases.map((p, i) => {
               const fullIdx = PHASES.findIndex((x) => x.key === p.key);
@@ -364,16 +364,16 @@ export default function OpsPage() {
               const isActive = fullIdx === activeIndex && !isResolved;
               const isApprovedStep = p.key === "approved";
               const isRejectedStep = p.key === "rejected";
-              const accentText = isRejectedStep ? "text-danger" : isApprovedStep ? "text-accent-2" : "text-ok";
+              const accentText = isRejectedStep ? "text-danger" : isApprovedStep ? "text-accent" : "text-ok";
               const circleCls =
                 isCompleted || isApprovedStep
                   ? isRejectedStep
                     ? "bg-danger/15 border-danger text-danger"
                     : isApprovedStep
-                      ? "bg-accent-2/15 border-accent-2 text-accent-2"
+                      ? "bg-accent/15 border-accent text-accent"
                       : "bg-ok/15 border-ok text-ok"
                   : isActive
-                    ? "bg-accent-2/15 border-accent-2 text-accent-2 animate-ops-blink"
+                    ? "bg-accent/15 border-accent text-accent animate-ops-blink"
                     : "bg-ops-surface border-ops-line text-ops-faint";
 
               return (
@@ -398,17 +398,18 @@ export default function OpsPage() {
             })}
             <div className="flex-1" />
             <div className="mono text-[11px] text-ops-faint whitespace-nowrap pl-4">
-              phase · <span className={isResolved ? (activePhase === "approved" ? "text-accent-2" : "text-danger") : "text-ok"}>{activePhase}</span>
+              phase · <span className={isResolved ? (activePhase === "approved" ? "text-accent" : "text-danger") : "text-ok"}>{activePhase}</span>
             </div>
+          </div>
           </div>
         </div>
 
         {/* Body grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-[1.55fr_1fr] gap-px bg-ops-line">
+        <div className="grid grid-cols-1 xl:grid-cols-[1.55fr_1fr] gap-5">
           {/* LEFT COLUMN */}
-          <div className="bg-ops-bg p-4 md:p-5 flex flex-col gap-4">
+          <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div className="bg-ops-surface border border-ops-line rounded-2xl p-4">
+              <div className="bg-ops-surface/70 border border-ops-line rounded-2xl p-4">
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
                   {snapshot.event?.severity && (
                     <span className="mono text-[9px] text-danger bg-danger/10 border border-danger/30 px-1.5 py-0.5 rounded font-bold uppercase">
@@ -444,7 +445,7 @@ export default function OpsPage() {
             <VesselMap apiBaseUrl={apiBaseUrl} disruptedMmsi={snapshot.event?.mmsi} port={snapshot.event?.port} />
 
             {/* Recovery options matrix */}
-            <div className="bg-ops-surface border border-ops-line rounded-2xl p-4 md:p-5">
+            <div className="bg-ops-surface/70 border border-ops-line rounded-2xl p-4 md:p-5">
               <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
                 <div className="flex items-center gap-2.5">
                   <span className="text-[15px] font-bold">Recovery options</span>
@@ -467,7 +468,7 @@ export default function OpsPage() {
                   <button
                     onClick={refreshTariffs}
                     disabled={tariffState.loading}
-                    className="flex items-center gap-1.5 mono text-[10px] text-accent-2 border border-accent-2/30 bg-accent-2/8 hover:bg-accent-2/15 disabled:opacity-50 px-2.5 py-1 rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 mono text-[10px] text-accent border border-accent/30 bg-accent/8 hover:bg-accent/15 disabled:opacity-50 px-2.5 py-1 rounded-lg transition-colors"
                   >
                     <RefreshCw className={`h-3 w-3 ${tariffState.loading ? "animate-spin" : ""}`} />
                     {tariffState.loading ? "Refreshing…" : "Refresh live tariff"}
@@ -475,11 +476,11 @@ export default function OpsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-[1.1fr_0.9fr_0.7fr_1.7fr] gap-0 mono text-[9px] tracking-wider text-ops-faint uppercase pb-2.5 border-b border-ops-line">
-                <div>Proposer · strategy</div>
-                <div>Feasibility</div>
-                <div className="text-right">ETA Δ</div>
-                <div className="text-right">D&amp;D cost Δ · rationale</div>
+              <div className="grid grid-cols-[1.1fr_0.9fr_0.7fr_1.7fr] gap-3 mono text-[9px] tracking-wider text-ops-faint uppercase pb-2.5 px-2 border-b border-ops-line">
+                <div className="min-w-0">Proposer · strategy</div>
+                <div className="min-w-0">Feasibility</div>
+                <div className="text-right min-w-0">ETA Δ</div>
+                <div className="text-right min-w-0">D&amp;D cost Δ · rationale</div>
               </div>
 
               {snapshot.options.length === 0 ? (
@@ -496,26 +497,26 @@ export default function OpsPage() {
                   return (
                     <div key={opt.id}>
                       <div
-                        className={`grid grid-cols-[1.1fr_0.9fr_0.7fr_1.7fr] gap-0 items-center ${
+                        className={`grid grid-cols-[1.1fr_0.9fr_0.7fr_1.7fr] gap-3 items-center min-w-0 px-2 ${
                           isRecommended
-                            ? "px-3 py-3.5 mt-2 -mx-3 bg-ok/8 border border-ok/30 rounded-xl"
+                            ? "py-3.5 mt-2 bg-ok/8 border border-ok/30 rounded-xl"
                             : "py-3.5 border-b border-ops-line/50"
                         }`}
                       >
-                        <div>
+                        <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className={`w-1.5 h-1.5 rounded-full ${opt.proposer === "logistics" ? "bg-ok" : "bg-warn"}`} />
-                            <span className="text-xs font-semibold capitalize">{opt.proposer}</span>
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${opt.proposer === "logistics" ? "bg-ok" : "bg-warn"}`} />
+                            <span className="text-xs font-semibold capitalize truncate">{opt.proposer}</span>
                           </div>
-                          <div className={`mono text-[13px] font-bold mt-1.5 uppercase ${isRecommended ? "text-ok" : "text-ops-ink"}`}>
+                          <div className={`mono text-[13px] font-bold mt-1.5 uppercase truncate ${isRecommended ? "text-ok" : "text-ops-ink"}`}>
                             {opt.type}
                           </div>
                         </div>
-                        <div className={`text-xs font-semibold ${feasColor}`}>{opt.feasibility}</div>
-                        <div className={`text-right mono text-[13px] ${etaColor}`}>
+                        <div className={`text-xs font-semibold min-w-0 truncate ${feasColor}`}>{opt.feasibility}</div>
+                        <div className={`text-right mono text-[13px] min-w-0 ${etaColor}`}>
                           {opt.eta_delta_hours > 0 ? `+${opt.eta_delta_hours}` : opt.eta_delta_hours} h
                         </div>
-                        <div className="text-right">
+                        <div className="text-right min-w-0">
                           <span className={`mono text-[13px] font-bold ${opt.cost_delta !== null ? (isRecommended ? "text-ops-ink" : feas === "low" ? "text-danger" : "text-ops-ink") : "text-ops-faint"}`}>
                             {opt.cost_delta !== null ? `$${opt.cost_delta.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}
                           </span>
@@ -554,12 +555,12 @@ export default function OpsPage() {
           </div>
 
           {/* RIGHT COLUMN */}
-          <div className="bg-ops-bg p-4 md:p-5 flex flex-col gap-4">
+          <div className="flex flex-col gap-4">
             {/* Human gate — approval */}
             {snapshot.incident && activePhase === "awaiting_approval" && (
-              <div className="rounded-2xl p-4 md:p-5 border border-accent-2/40 bg-ops-surface">
+              <div className="rounded-2xl p-4 md:p-5 border border-accent/40 bg-panel/70">
                 <div className="flex items-center gap-2.5 border-b border-ops-line pb-3">
-                  <ShieldCheck className="h-6 w-6 text-accent-2" />
+                  <ShieldCheck className="h-6 w-6 text-accent" />
                   <div>
                     <h2 className="text-base font-bold text-ops-ink">Ops Manager approval gate</h2>
                     <p className="text-[11px] text-ops-mute">Review the recommendation and authorize recovery</p>
@@ -567,12 +568,12 @@ export default function OpsPage() {
                 </div>
 
                 {snapshot.recommendation && (
-                  <div className="bg-accent-2/6 border border-accent-2/20 p-4 rounded-xl flex flex-col gap-2.5 mt-4">
+                  <div className="bg-accent/6 border border-accent/20 p-4 rounded-xl flex flex-col gap-2.5 mt-4">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <span className="mono text-[10px] uppercase font-bold text-accent-2 tracking-wider flex items-center gap-1.5">
+                      <span className="mono text-[10px] uppercase font-bold text-accent tracking-wider flex items-center gap-1.5">
                         Top recommendation
                         {typeof snapshot.recommendation.vote_score === "number" && (
-                          <span className="px-1.5 py-0.5 rounded bg-accent-2/10 text-accent-2 border border-accent-2/20 text-[9px] font-bold normal-case tracking-normal">
+                          <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/20 text-[9px] font-bold normal-case tracking-normal">
                             quorum {snapshot.recommendation.vote_score.toFixed(2)}
                           </span>
                         )}
@@ -587,7 +588,7 @@ export default function OpsPage() {
 
                     <div className="flex justify-between items-center">
                       <div className="text-base font-bold text-ops-ink flex items-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded bg-accent-2 text-white font-bold text-xs uppercase">
+                        <span className="px-2.5 py-0.5 rounded bg-accent text-white font-bold text-xs uppercase">
                           {snapshot.recommendation.type}
                         </span>
                         <span className="text-ops-ink text-sm">by {snapshot.recommendation.proposer}</span>
@@ -598,7 +599,7 @@ export default function OpsPage() {
                       </div>
                     </div>
 
-                    <p className="text-xs text-ops-mute italic border-l-2 border-accent-2/50 pl-3">
+                    <p className="text-xs text-ops-mute italic border-l-2 border-accent/50 pl-3">
                       &quot;{snapshot.recommendation.rationale}&quot;
                     </p>
                     {snapshot.recommendation.source_url && (
@@ -700,7 +701,7 @@ export default function OpsPage() {
             )}
 
             {/* Room feed */}
-            <div className="bg-ops-surface border border-ops-line rounded-2xl flex flex-col h-[480px]">
+            <div className="bg-ops-surface/70 border border-ops-line rounded-2xl flex flex-col h-[480px]">
               <div className="p-4 border-b border-ops-line flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="h-4 w-4 text-accent-2" />
@@ -829,7 +830,7 @@ export default function OpsPage() {
             </div>
 
             {/* Affected importers */}
-            <div className="bg-ops-surface border border-ops-line rounded-2xl p-4 md:p-5">
+            <div className="bg-ops-surface/70 border border-ops-line rounded-2xl p-4 md:p-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-bold text-sm">Affected importers</h2>
                 <span className="mono text-[9px] text-ok bg-ok/10 border border-ok/30 px-2 py-1 rounded font-bold uppercase">
@@ -872,7 +873,7 @@ export default function OpsPage() {
 
         {/* Agent roster strip */}
         {snapshot.participants.length > 0 && (
-          <div className="border-t border-ops-line bg-ops-surface px-5 md:px-6 py-3.5 flex items-center gap-3.5 flex-wrap">
+          <div className="rounded-2xl border border-border bg-panel/70 mt-5 px-4 py-3.5 flex items-center gap-3.5 flex-wrap">
             <span className="mono text-[10px] tracking-wider text-ops-faint uppercase">Collaborating via room bus</span>
             <div className="flex gap-2 flex-wrap">
               {snapshot.participants.map((p, idx) => (
@@ -883,7 +884,7 @@ export default function OpsPage() {
             </div>
           </div>
         )}
+      </div>
       </main>
-    </>
   );
 }

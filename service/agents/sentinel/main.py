@@ -31,7 +31,6 @@ from events import publish_room_event  # noqa: E402
 
 import room_bus  # noqa: E402
 import registry  # noqa: E402
-import protocol  # noqa: E402
 
 ROLE = "sentinel"
 
@@ -264,48 +263,18 @@ async def on_room_message(data: dict, redis_client) -> None:
                     await room_bus.send(session, room_id, ROLE, recommendation_msg, mentions=[])
             return
 
-        # 1. Check if the message contains a structured RecoveryOptionMsg
-        option_msg = protocol.parse_option(content)
-        if option_msg:
-            print(f"Detected RecoveryOptionMsg proposed by {option_msg.proposer}")
-            async with SessionLocal() as session:
-                stmt = select(Incident).where(Incident.id == room_id)
-                res = await session.execute(stmt)
-                incident = res.scalar_one_or_none()
-                if incident:
-                    option_row = RecoveryOption(
-                        room_id=incident.id,
-                        proposer=option_msg.proposer,
-                        type=option_msg.type,
-                        feasibility=option_msg.feasibility,
-                        eta_delta_hours=option_msg.eta_delta_hours,
-                        cost_delta=option_msg.cost_delta,
-                        risk=option_msg.risk,
-                        rationale=option_msg.rationale,
-                    )
-                    session.add(option_row)
-                    await session.commit()
-                    await session.refresh(option_row)
+        # Every proposing/annotating agent (logistics, carrier, procurement,
+        # customer_impact, finance) already persists its own RecoveryOption row
+        # directly and publishes its own "option_added" room_event right after —
+        # Sentinel used to *also* blindly re-parse any message's fenced-JSON
+        # option block and insert another row here, which duplicated every single
+        # proposal (and tripled it for Finance's re-annotated repost) since every
+        # proposing message's JSON is a copy of data already saved. Removed
+        # rather than deduped: there's no case where an agent posts a parseable
+        # option without having already persisted it itself, so this block was
+        # pure duplication, not a useful fallback.
 
-                    print(f"Persisted RecoveryOption #{option_row.id} in DB.")
-
-                    await publish_room_event(
-                        kind="option_added",
-                        room_id=str(room_id),
-                        ts=datetime.now(timezone.utc),
-                        payload={
-                            "option_id": option_row.id,
-                            "proposer": option_row.proposer,
-                            "type": option_row.type,
-                            "feasibility": option_row.feasibility,
-                            "eta_delta_hours": option_row.eta_delta_hours,
-                            "cost_delta": float(option_row.cost_delta) if option_row.cost_delta else None,
-                            "rationale": option_row.rationale,
-                        },
-                        redis_client=redis_client,
-                    )
-
-        # 2. Check if Sentinel is mentioned to drive the phase change
+        # Check if Sentinel is mentioned to drive the phase change
         if ROLE in mentions:
             print("Sentinel mentioned. Advancing phase.")
             async with SessionLocal() as session:

@@ -14,10 +14,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # Load environment variables
 load_dotenv(dotenv_path=os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env")))
 
+from datetime import datetime, timezone
+
 from database import SessionLocal
 from models import Incident, RecoveryOption, DisruptionEvent, Vessel, BolRecord
 from cost import compute_dd_exposure
 from sqlalchemy import select
+from events import publish_room_event
 
 from model_router import client_for
 
@@ -164,6 +167,12 @@ Respond ONLY with a JSON object in this format:
                 opt_row.rationale = f"{opt_row.rationale or ''}\n\n[Finance Rationale]: {rationale_text}".strip()
                 await session.commit()
                 print(f"[Finance Agent] Updated RecoveryOption in DB: {opt_row.id} with cost_delta={cost_delta}")
+                await publish_room_event(
+                    kind="option_added",
+                    room_id=str(room_id),
+                    ts=datetime.now(timezone.utc),
+                    payload={"proposer": "finance", "count": 1},
+                )
             else:
                 print(f"[Finance Agent] WARNING: RecoveryOption for room {room_id}, proposer={opt_msg.proposer}, type={opt_msg.type} not found in DB.")
 
