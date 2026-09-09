@@ -119,7 +119,7 @@ export function VesselMap({
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+      style: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
       center: [-118.21, 33.74], // LA/Long Beach — the demo port complex
       zoom: 10,
       pitch: 45,

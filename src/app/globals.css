@@ -13,16 +13,16 @@
   --warn: #d97706;
   --ok: #16a34a;
 
-  /* Ops room console — a distinct dark "war room" surface. Semantic colors
-     (approve/reject/warn/live) reuse the tokens above; these are only the
-     dark-surface/text shades the reference theme needed that don't exist
-     in the light planning-flow palette. */
-  --ops-bg: #0b1016;
-  --ops-surface: #10161f;
-  --ops-line: #1f2a37;
-  --ops-ink: #eef2f7;
-  --ops-mute: #8b9aac;
-  --ops-faint: #5f6e80;
+  /* Ops room console — shares the same light surface as the rest of the app.
+     These aliases exist only so the console's JSX (bg-ops-surface, etc.)
+     doesn't need touching; they resolve to the same values as the planning
+     flow's tokens, not a separate palette. */
+  --ops-bg: var(--background);
+  --ops-surface: var(--panel);
+  --ops-line: var(--border);
+  --ops-ink: var(--foreground);
+  --ops-mute: var(--muted);
+  --ops-faint: #9aa3af;
 }
 
 @theme inline {
@@ -134,7 +134,7 @@ body {
   background-color: var(--danger);
 }
 
-/* MapLibre popup — match the ops dark console palette */
+/* MapLibre popup — match the app's shared palette */
 .maplibregl-popup-content {
   background-color: var(--ops-surface) !important;
   color: var(--ops-ink) !important;
