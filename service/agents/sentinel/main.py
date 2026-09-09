@@ -514,7 +514,12 @@ async def listen_decisions(redis_client) -> None:
                                 )
                                 session.add(decision_row)
 
-                                new_phase = "approved" if action == "approved" else "rejected"
+                                # Trust the phase the REST decision endpoint already computed
+                                # and committed (see backend/main.py::record_decision) instead
+                                # of re-deriving it here — two independent derivations of the
+                                # same value previously used different string conventions
+                                # ("approve" vs "approved") and raced with each other.
+                                new_phase = data.get("new_phase") or ("approved" if action == "approved" else "rejected")
                                 incident.phase = new_phase
                                 await session.commit()
                                 print(f"[Sentinel Decisions] Incident #{incident_id} phase updated to {incident.phase}")

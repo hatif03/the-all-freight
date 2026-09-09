@@ -100,7 +100,9 @@ async def generate_options_node(state: LogisticsState, config: RunnableConfig):
             print(f"[Logistics Graph] WARNING: Incident for room {room_id} not found in DB. Options will not be persisted.")
             options_persisted = result.options
 
-        # Format message and send to the room, mentioning finance
+        # Format message and send to the room, mentioning finance (to cost it) and
+        # carrier (to counter it) in parallel — both ground themselves in the full
+        # room history via room_bus.get_context, not just this one message.
         for opt in options_persisted:
             opt_msg = protocol.RecoveryOptionMsg(
                 proposer="logistics",
@@ -113,10 +115,12 @@ async def generate_options_node(state: LogisticsState, config: RunnableConfig):
             )
 
             text = f"Logistics has analyzed the manifest and proposed a recovery plan."
-            formatted_message = protocol.format_message(text, opt_msg, mentions=[{"handle": "finance"}])
+            formatted_message = protocol.format_message(
+                text, opt_msg, mentions=[{"handle": "finance"}, {"handle": "carrier"}]
+            )
 
-            print(f"[Logistics Graph] Posting option to room {room_id} and mentioning finance...")
-            await room_bus.send(session, room_id, ROLE, formatted_message, mentions=["finance"])
+            print(f"[Logistics Graph] Posting option to room {room_id} and mentioning finance + carrier...")
+            await room_bus.send(session, room_id, ROLE, formatted_message, mentions=["finance", "carrier"])
 
     return {"messages": [AIMessage(content="Proposed and persisted logistics recovery options.")]}
 

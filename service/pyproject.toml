@@ -30,3 +30,9 @@ packages = []
 
 [tool.uv.workspace]
 members = ["agents/*"]
+# Every agent runs its main.py as a top-level script importing sibling modules
+# (protocol, registry, room_bus) via PYTHONPATH, so Python caches their bytecode
+# in agents/__pycache__/ — which matches the members glob above and breaks every
+# subsequent `uv run` in this workspace ("missing a pyproject.toml") until it's
+# removed. Exclude it explicitly rather than relying on remembering to clean it up.
+exclude = ["agents/__pycache__"]

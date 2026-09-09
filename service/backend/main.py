@@ -419,6 +419,11 @@ async def record_decision(id: int, req: DecisionRequest, db=Depends(get_db)):
         decisions_payload = {
             "incident_id": incident.id,
             "action": req.action,
+            # The phase this endpoint already computed and committed (see new_phase
+            # above) — published so Sentinel applies the same value instead of
+            # re-deriving it from `action` with its own (previously inconsistent)
+            # string matching, which raced with this write.
+            "new_phase": new_phase,
             "actor": req.actor,
             "reason": req.reason,
             "option_id": req.option_id
