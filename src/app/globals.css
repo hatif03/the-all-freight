@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f8fa;
+  --panel: #ffffff;
+  --panel-2: #f3f5f7;
+  --border: #e4e7eb;
+  --foreground: #111827;
+  --muted: #6b7280;
+  --accent: #0d9488;
+  --accent-2: #0284c7;
+  --danger: #e11d48;
+  --warn: #d97706;
+  --ok: #16a34a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --color-ok: var(--ok);
+  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-geist-sans);
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background-image:
+    radial-gradient(60rem 40rem at 85% -10%, rgba(2, 132, 199, 0.05), transparent),
+    radial-gradient(50rem 40rem at 0% 5%, rgba(13, 148, 136, 0.04), transparent);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d4d8dd;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mono {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+.serif {
+  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(45, 212, 191, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(45, 212, 191, 0); }
+}
+.pulse-ring { animation: pulse-ring 1.6s infinite; }
+
+/* Flowing particles along dependency-graph edges (center -> node) */
+@keyframes dash-flow {
+  to { stroke-dashoffset: -16; }
+}
+.edge-flow {
+  stroke-dasharray: 2 8;
+  animation: dash-flow 1.1s linear infinite;
+}
+.dep-node {
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.dep-node:hover {
+  filter: brightness(1.25);
+}

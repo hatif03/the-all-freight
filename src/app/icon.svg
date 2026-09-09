@@ -1,0 +1,10 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="32" height="32" rx="7" fill="#06080d"/>
+  <circle cx="16" cy="16" r="11.5" stroke="#2dd4bf" stroke-width="1.5" opacity="0.45"/>
+  <circle cx="16" cy="16" r="11.5" stroke="#2dd4bf" stroke-width="1.5" stroke-dasharray="1 4" opacity="0.7"/>
+  <!-- compass needle: north (bright) -->
+  <path d="M16 5.5 L19.5 16 L16 14 L12.5 16 Z" fill="#2dd4bf"/>
+  <!-- compass needle: south (muted) -->
+  <path d="M16 26.5 L12.5 16 L16 18 L19.5 16 Z" fill="#8b97a7"/>
+  <circle cx="16" cy="16" r="1.7" fill="#e6edf3"/>
+</svg>
