@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import maplibregl from "maplibre-gl";
+// maplibre-gl v6 is ESM-only with no synthetic default export — use the namespace import.
+import * as maplibregl from "maplibre-gl";
 
 interface Vessel {
   mmsi: number;
