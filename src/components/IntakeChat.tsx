@@ -302,6 +302,7 @@ export function IntakeChat({
           }}
           disabled={disabled || parsing}
           placeholder="Describe your shipment…"
+          data-tour="intake"
           className="w-full rounded-full bg-panel border border-border pl-5 pr-14 py-4 text-sm outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20 transition shadow-lg placeholder:text-muted"
         />
         <button
@@ -317,7 +318,7 @@ export function IntakeChat({
 
       {/* Quick-start presets */}
       {!started && presets && presets.length > 0 && (
-        <div className="mt-6">
+        <div className="mt-6" data-tour="presets">
           <div className="text-center text-[11px] mono uppercase tracking-wider text-foreground/50 mb-2.5">Try one</div>
           <div className="flex flex-wrap justify-center gap-2">
             {presets.map((p) => (

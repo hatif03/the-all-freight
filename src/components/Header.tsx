@@ -95,6 +95,7 @@ export function Header() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  data-tour={item.href === "/ops" ? "nav-ops" : undefined}
                   className={`px-2 py-1 rounded-md border transition flex items-center gap-1.5 ${
                     isActive
                       ? "border-accent/40 text-accent bg-accent/10"
@@ -112,8 +113,18 @@ export function Header() {
               );
             })}
           </nav>
-          <span className="text-muted hidden sm:inline">powered by</span>
-          <span className="text-accent-2 font-semibold">Anakin</span>
+          <Link
+            href="/how-it-works"
+            title="How this works"
+            aria-label="How this works"
+            className="size-6 grid place-items-center rounded-md border border-border text-muted hover:text-foreground hover:border-accent/40 transition"
+          >
+            ?
+          </Link>
+          <span data-tour="provenance" className="flex items-center gap-1.5">
+            <span className="text-muted hidden sm:inline">powered by</span>
+            <span className="text-accent-2 font-semibold">Anakin</span>
+          </span>
         </div>
       </div>
     </header>

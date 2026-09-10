@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { Suspense } from "react";
 import { Header } from "@/components/Header";
 import { MotionProvider } from "@/components/MotionProvider";
+import { Tour } from "@/components/Tour";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -25,6 +27,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <MotionProvider>
           <Header />
           {children}
+          {/* Suspense because the tour reads search params (?tour=1) to allow
+              replaying it, and that suspends during prerender. */}
+          <Suspense fallback={null}>
+            <Tour />
+          </Suspense>
         </MotionProvider>
       </body>
     </html>
