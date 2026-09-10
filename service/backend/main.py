@@ -5,7 +5,7 @@ import sys
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks, Depends, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from database import engine, SessionLocal, get_db
@@ -15,11 +15,17 @@ import json
 import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
-from models import Incident, DisruptionEvent, RecoveryOption, AffectedParty, Participant, Vote, Dissent, Decision, Vessel, TrackedShipment, ShipmentIncidentLink
+from models import Incident, DisruptionEvent, RecoveryOption, AffectedParty, Participant, Vote, Dissent, Decision, Vessel, TrackedShipment, ShipmentIncidentLink, AnakinMonitor, MonitorSignal, ShipmentMonitorLink
 from events import publish_room_event
 from dossier import build_dossier
 from ports import PORTS, PORTS_BY_CODE, resolve_port_code
 from shipment_matcher import link_shipment_to_open_incidents
+from monitors import (
+    ensure_monitors_for_shipment,
+    record_signal,
+    release_monitors_for_shipment,
+    verify_signature,
+)
 from typing import Optional
 from pydantic import BaseModel
 # Real, cited tariff source used only for options that carry a Finance-computed
@@ -625,6 +631,8 @@ async def track_shipment(req: TrackShipmentRequest, db=Depends(get_db)):
     # A relevant incident may already be running; without this the shipment
     # would show nothing until the next disruption.
     await link_shipment_to_open_incidents(db, shipment)
+    # Register the page monitors for this lane (reusing any that already exist).
+    await ensure_monitors_for_shipment(db, shipment)
 
     return await _shipment_detail(db, shipment)
 
@@ -692,11 +700,49 @@ async def _shipment_detail(db, shipment: TrackedShipment) -> dict:
         }
         for link, incident, event in links
     ]
+    # Web signals reach a shipment through the monitors it shares with others —
+    # one page change is one signal, seen by every shipment watching that URL.
+    signal_rows = (
+        await db.execute(
+            select(MonitorSignal, AnakinMonitor)
+            .join(AnakinMonitor, AnakinMonitor.id == MonitorSignal.monitor_id)
+            .join(ShipmentMonitorLink, ShipmentMonitorLink.monitor_id == AnakinMonitor.id)
+            .where(ShipmentMonitorLink.shipment_id == shipment.id)
+            .order_by(MonitorSignal.detected_at.desc())
+            .limit(25)
+        )
+    ).all()
+    monitor_signals = [
+        {
+            "id": signal.id,
+            "kind": monitor.kind,
+            "monitor": monitor.label,
+            "summary": signal.summary,
+            "source_url": signal.source_url,
+            "detected_at": signal.detected_at.isoformat() if signal.detected_at else None,
+        }
+        for signal, monitor in signal_rows
+    ]
+
+    watched = (
+        await db.execute(
+            select(AnakinMonitor)
+            .join(ShipmentMonitorLink, ShipmentMonitorLink.monitor_id == AnakinMonitor.id)
+            .where(ShipmentMonitorLink.shipment_id == shipment.id)
+            .order_by(AnakinMonitor.id)
+        )
+    ).scalars().all()
+
     open_count = sum(1 for i in incidents if i["phase"] not in ("approved", "rejected"))
     return {
         **_shipment_summary(shipment, open_count),
         "analysis": shipment.analysis,
         "incidents": incidents,
+        "monitor_signals": monitor_signals,
+        "monitors": [
+            {"label": m.label, "kind": m.kind, "url": m.url, "interval_minutes": m.interval_minutes}
+            for m in watched
+        ],
     }
 
 
@@ -717,9 +763,101 @@ async def delete_shipment(id: int, db=Depends(get_db)):
     ).scalar_one_or_none()
     if not shipment:
         raise HTTPException(status_code=404, detail="Shipment not found")
+    # Before the links cascade away, drop any monitor nobody else is watching —
+    # otherwise we keep paying to poll a page for a deleted shipment.
+    await release_monitors_for_shipment(db, shipment.id)
     await db.delete(shipment)
     await db.commit()
     return None
+
+
+@app.post("/webhooks/anakin/monitor")
+async def anakin_monitor_webhook(request: Request, db=Depends(get_db)):
+    """Receive a page-change alert from an Anakin monitor.
+
+    This endpoint is public, so the HMAC signature is the only thing separating
+    a real delivery from anyone POSTing at it. A change recorded here is a web
+    signal — it never becomes a DisruptionEvent and never opens a negotiation
+    room, because a tariff page being edited is not a vessel being delayed.
+    """
+    body = await request.body()
+    try:
+        payload = json.loads(body or b"{}")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Body must be JSON")
+
+    monitor_ref = str(
+        payload.get("monitorId") or payload.get("monitor_id") or payload.get("id") or ""
+    )
+    if not monitor_ref:
+        raise HTTPException(status_code=400, detail="Payload has no monitor id")
+
+    monitor = (
+        await db.execute(select(AnakinMonitor).where(AnakinMonitor.anakin_monitor_id == monitor_ref))
+    ).scalar_one_or_none()
+    if not monitor:
+        raise HTTPException(status_code=404, detail="Unknown monitor")
+
+    signature = (
+        request.headers.get("x-anakin-signature")
+        or request.headers.get("x-signature")
+        or request.headers.get("x-hub-signature-256")
+    )
+    if not verify_signature(body, signature, monitor.webhook_secret):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    signal = await record_signal(db, monitor, payload)
+
+    # Nudge any connected dashboard the same way incident activity does — but
+    # never fail the delivery over it. The signal is already committed, so a
+    # non-2xx here would just make Anakin redeliver and duplicate the row.
+    try:
+        await publish_room_event(
+            kind="monitor_signal",
+            room_id="global",
+            ts=datetime.datetime.now(datetime.timezone.utc),
+            payload={
+                "monitor": monitor.label,
+                "kind": monitor.kind,
+                "summary": signal.summary,
+                "source_url": monitor.url,
+            },
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"[monitors] Recorded signal {signal.id} but failed to publish it: {e}")
+
+    return {"recorded": True, "signal_id": signal.id}
+
+
+@app.get("/monitors")
+async def list_monitors(db=Depends(get_db)):
+    """Registered monitors and their most recent signals."""
+    monitors = (
+        await db.execute(
+            select(AnakinMonitor).options(selectinload(AnakinMonitor.signals)).order_by(AnakinMonitor.id)
+        )
+    ).scalars().all()
+    return [
+        {
+            "id": m.id,
+            "url": m.url,
+            "kind": m.kind,
+            "label": m.label,
+            "port_code": m.port_code,
+            "interval_minutes": m.interval_minutes,
+            "webhook_registered": bool(m.webhook_secret),
+            "signal_count": len(m.signals),
+            "latest_signal": (
+                {
+                    "summary": s.summary,
+                    "detected_at": s.detected_at.isoformat() if s.detected_at else None,
+                }
+                if (s := max(m.signals, key=lambda x: x.detected_at, default=None))
+                else None
+            ),
+        }
+        for m in monitors
+    ]
 
 
 @app.get("/incidents")

@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379"
     SQL_ECHO: bool = False
 
+    # Publicly reachable origin for this service, used to register Anakin
+    # monitor webhooks. Left unset (or loopback) in local dev, where Anakin
+    # can't reach us and monitor changes have to be polled instead.
+    PUBLIC_BASE_URL: Optional[str] = None
+
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def fix_postgres_scheme(cls, v: str) -> str:

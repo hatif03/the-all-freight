@@ -40,7 +40,11 @@ class RoomEventSchema(BaseModel):
         "message",
         "option_added",
         "phase_change",
-        "decision"
+        "decision",
+        # Not tied to a negotiation room — a monitored page changed. Carried on
+        # the same channel so the dashboard gets it live without a second
+        # relay, with room_id="global" to mark that it belongs to no room.
+        "monitor_signal",
     ]
     room_id: str
     ts: str
@@ -86,7 +90,9 @@ async def publish_disruption(
             await redis_client.aclose()
 
 async def publish_room_event(
-    kind: Literal["room_created", "agent_recruited", "message", "option_added", "phase_change", "decision"],
+    kind: Literal[
+        "room_created", "agent_recruited", "message", "option_added", "phase_change", "decision", "monitor_signal"
+    ],
     room_id: str,
     ts: Union[str, datetime],
     payload: Dict[str, Any],

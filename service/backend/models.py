@@ -248,6 +248,78 @@ class ShipmentIncidentLink(Base):
     incident: Mapped[Incident] = relationship(back_populates="shipment_links")
 
 
+class AnakinMonitor(Base):
+    """A scheduled page-change monitor registered with Anakin.
+
+    Keyed by `url` rather than by shipment: monitors cost credits on every
+    check, so N shipments routing through the same port share one monitor
+    instead of each registering their own. `ShipmentMonitorLink` records who
+    cares about it, and a monitor is only deregistered once nobody does.
+    """
+
+    __tablename__ = "anakin_monitors"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    anakin_monitor_id: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    url: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    label: Mapped[str] = mapped_column(String(255), nullable=False)
+    port_code: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    interval_minutes: Mapped[int] = mapped_column(nullable=False)
+    # Anakin HMAC-signs webhook deliveries with this; without it a delivery
+    # can't be distinguished from anyone POSTing at the public endpoint.
+    webhook_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    signals: Mapped[list[MonitorSignal]] = relationship(back_populates="monitor", cascade="all, delete-orphan")
+    shipment_links: Mapped[list[ShipmentMonitorLink]] = relationship(
+        back_populates="monitor", cascade="all, delete-orphan"
+    )
+
+
+class ShipmentMonitorLink(Base):
+    __tablename__ = "shipment_monitor_links"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    shipment_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("tracked_shipments.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    monitor_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("anakin_monitors.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    monitor: Mapped[AnakinMonitor] = relationship(back_populates="shipment_links")
+
+
+class MonitorSignal(Base):
+    """A detected change on a monitored page.
+
+    Deliberately NOT a DisruptionEvent: that table requires a real vessel MMSI,
+    so recording a tariff-page edit as one would fabricate a vessel disruption.
+    Web signals are their own class of evidence and are surfaced as such.
+
+    Attached to the monitor rather than to a shipment, because one page change
+    is one event — every shipment watching that URL sees the same signal.
+    """
+
+    __tablename__ = "monitor_signals"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    monitor_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("anakin_monitors.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    changed: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    detected_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False, index=True
+    )
+    raw: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    monitor: Mapped[AnakinMonitor] = relationship(back_populates="signals")
+
+
 class Participant(Base):
     __tablename__ = "participants"
 
