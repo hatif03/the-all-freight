@@ -1,13 +1,15 @@
 """Thin async client for the Anakin API.
 
-Two capabilities are used elsewhere in this service:
-  - URL Scraper (sync inline variant): scrape one page against a JSON-Schema
-    `outputSchema` and get structured rows back directly in the response —
-    simpler than polling an async job, and good enough for a scheduled/CLI
-    tariff refresh (tariff_fetcher.py) or an on-demand BoL lookup
-    (bol_live_lookup.py).
-  - Wire catalog: look up (and resolve) a pre-built site action, so a lookup
-    can prefer a maintained integration over an ad hoc scrape when one exists.
+URL Scraper (inline variant): scrape one page against a JSON-Schema
+`outputSchema` with `generateJson` on, and get structured rows back in the
+response — good enough for a scheduled/CLI tariff refresh (tariff_fetcher.py)
+or an on-demand BoL lookup (bol_live_lookup.py). Falls back to polling when the
+page is slow enough that the inline call returns a job id instead.
+
+Wire is deliberately not wrapped here: its catalog covers ~940 consumer and
+business websites and has no bill-of-lading, customs or trade-data action, so
+there is nothing in it this service can use. See
+`.agent/records/anakin-tariff-and-bol.md`.
 """
 
 from __future__ import annotations
@@ -88,19 +90,6 @@ class AnakinClient:
             body = polled.json()
 
         return extract_generated(body)
-
-    async def wire_catalog(self, query: Optional[str] = None) -> Any:
-        """List available Wire site actions, optionally filtered by `query`."""
-        params = {"query": query} if query else None
-        response = await self._client.get("/wire/catalog", params=params)
-        response.raise_for_status()
-        return response.json()
-
-    async def wire_resolve(self, action_id: str, inputs: dict[str, Any]) -> Any:
-        """Run a resolved Wire action by id with the given inputs."""
-        response = await self._client.get("/wire/resolve", params={"action_id": action_id, **inputs})
-        response.raise_for_status()
-        return response.json()
 
     async def aclose(self) -> None:
         await self._client.aclose()

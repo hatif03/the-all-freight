@@ -79,3 +79,40 @@ paper over.
   and `openai` (already imported by `classifier.py` but was missing from
   backend's own dependency list — a pre-existing gap, fixed while making
   this change importable end-to-end).
+
+## Update — verified against the live API (2026-09-10)
+
+The open question above ("needs a live credential to actually validate") has
+now been closed by testing every call against `api.anakin.io`. Three of the
+assumptions in the Decision section were wrong, and each failed silently:
+
+1. **`scrape_url` never enabled AI extraction.** `generateJson` gates it and
+   defaults to false, so the response carried `markdown`/`html` but no
+   `generatedJson` at all. The payload also nests results under
+   `generatedJson.data`, while both callers read `result["rows"]` /
+   `result["records"]` directly. Now sent and unwrapped once in the client.
+2. **The cited Maersk tariff URL had rotted to a 404.** Since a missing page
+   yields zero rows rather than an error, `tariff_rates` simply stayed empty
+   and every negotiating agent reported "no published tariff on file" — the
+   demurrage grounding the ops room is built around had never once worked.
+   Replaced with a candidate list of published carrier tariff documents, tried
+   in order. The current Maersk US-import tariff PDF yields **145 rate rows,
+   109 with a non-zero per-day rate**, extracted straight from the PDF.
+3. **Wire cannot serve this domain, and the reasoning about why was
+   optimistic in the wrong direction.** `GET /wire/catalog` *ignores* its
+   `query` parameter and returns the full ~940-site catalog (it opens with a
+   recipe blog). There is no bill-of-lading, customs or trade-data action, so
+   the keyword-match branch could never fire — it wasn't "unlikely to match
+   yet", it was unreachable by construction. **Decision reversed: the Wire
+   path is removed**, along with `wire_catalog`/`wire_resolve` from the
+   client. `resolve_importers_live()` now goes straight to the scrape, with
+   its query string properly URL-encoded (it was previously interpolated raw,
+   so any vessel name with a space produced a malformed URL).
+
+The inline-over-async-job choice in the Decision section still holds, but with
+a caveat: large tariff PDFs exceed the inline window and return `processing`
+plus a job id, so the client now polls in that case.
+
+What did not change: the no-fabricated-data constraint. Every record from
+`resolve_importers_live()` is still `inferred=True`, and every path still
+returns empty rather than inventing a plausible row.
