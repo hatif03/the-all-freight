@@ -1,10 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f8fa;
+  /* The page is deliberately a step darker than the panels sitting on it.
+     Panels used to be white-at-70% over #f7f8fa, so the translucency did
+     nothing and every surface in the app was effectively the same value —
+     which is why it read flat no matter what else changed. */
+  --background: #eef1f4;
   --panel: #ffffff;
   --panel-2: #f3f5f7;
-  --border: #e4e7eb;
+  --border: #e2e6ea;
   --foreground: #111827;
   --muted: #6b7280;
   --accent: #0d9488;
@@ -45,6 +49,9 @@
   --color-ops-faint: var(--ops-faint);
   --font-mono: var(--font-geist-mono);
   --font-sans: var(--font-geist-sans);
+  /* Two-stop shadow: a tight contact edge plus a soft lift, so a panel reads
+     as sitting above the page rather than being drawn on it. */
+  --shadow-panel: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
 }
 
 html,
@@ -55,9 +62,17 @@ body {
 }
 
 body {
+  /* Two anchored washes plus a faint 32px grid. The gradients were at 4-5%
+     before, which was invisible; the grid reads as instrumentation for an ops
+     product and is the cheapest thing that makes both halves feel like one
+     surface without either of them changing. */
   background-image:
-    radial-gradient(60rem 40rem at 85% -10%, rgba(2, 132, 199, 0.05), transparent),
-    radial-gradient(50rem 40rem at 0% 5%, rgba(13, 148, 136, 0.04), transparent);
+    radial-gradient(55rem 38rem at 100% -8%, rgba(2, 132, 199, 0.09), transparent),
+    radial-gradient(50rem 36rem at 0% 0%, rgba(13, 148, 136, 0.08), transparent),
+    linear-gradient(to right, rgba(17, 24, 39, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(17, 24, 39, 0.025) 1px, transparent 1px);
+  background-size: auto, auto, 32px 32px, 32px 32px;
+  background-attachment: fixed, fixed, fixed, fixed;
 }
 
 ::-webkit-scrollbar {
@@ -150,3 +165,33 @@ body {
 .maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--ops-line) !important; }
 .maplibregl-popup-close-button { color: var(--ops-mute) !important; padding: 4px 8px !important; }
 .maplibregl-popup-close-button:hover { background-color: transparent !important; color: var(--ops-ink) !important; }
+
+/* --- Reduced motion ---
+   framer-motion's MotionConfig (see components/MotionProvider.tsx) covers every
+   motion.* element, but it can't touch hand-written CSS keyframes or Tailwind's
+   animate-* utilities, so they're stopped here. Someone who asked their OS for
+   stillness should get stillness: a spinner's presence still reads as "busy"
+   from the icon and the text beside it. */
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ring,
+  .edge-flow,
+  .animate-ops-blink,
+  .ops-vessel-marker,
+  .animate-spin,
+  .animate-pulse {
+    animation: none !important;
+  }
+  .skeleton {
+    animation: none !important;
+  }
+}
+
+/* Skeleton placeholder for content whose shape is known before it arrives. */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.skeleton {
+  background: var(--panel-2);
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}

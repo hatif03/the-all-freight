@@ -22,7 +22,6 @@ import {
   AlertTriangle,
   Anchor,
   ArrowDownRight,
-  ArrowRight,
   ArrowUpRight,
   Check,
   CheckCircle2,
@@ -38,11 +37,11 @@ import {
   Search,
   Ship,
   TrendingUp,
-  X,
   Zap,
 } from "lucide-react";
 import type { AnalysisResult, DependencyDriver, PortOption, RiskFactor } from "@/lib/types";
 import { categoryMeta, cn, fmtUsd, riskColor, riskLabel } from "@/lib/utils";
+import { Badge, Button, EmptyState, LiveBadge, Modal, Panel, SourceLink } from "./ui";
 
 import { DependencyGraph } from "./DependencyGraph";
 
@@ -91,18 +90,9 @@ function fmtDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function Panel({ title, className, children, action }: { title?: string; className?: string; children: React.ReactNode; action?: React.ReactNode }) {
-  return (
-    <section className={cn("rounded-2xl border border-border bg-panel/70 p-5", className)}>
-      {title && (
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-[11px] mono uppercase tracking-wider text-muted">{title}</h3>
-          {action}
-        </div>
-      )}
-      {children}
-    </section>
-  );
+function RiskCategoryIcon({ category }: { category: string }) {
+  const { Icon } = categoryMeta(category);
+  return <Icon className="size-5 text-muted shrink-0" />;
 }
 
 function Trend({ trend }: { trend: RiskFactor["trend"] }) {
@@ -227,7 +217,8 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
   const toggleDone = (i: number) =>
     setDoneItems((prev) => {
       const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
       return next;
     });
   const URGENCY: Record<string, string> = {
@@ -459,18 +450,15 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
               <span className="text-[11px] mono text-muted hidden sm:flex items-center gap-1.5">
                 <ListChecks className="size-3.5" /> {doneItems.size}/{actionPlan.length} done
               </span>
-              <button
-                onClick={copyPlan}
-                className="text-[11px] mono inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border bg-panel-2 text-muted hover:text-foreground hover:border-accent/40 transition"
-              >
+              <Button onClick={copyPlan} className="mono text-[11px]">
                 <Copy className="size-3.5" /> {copied ? "Copied!" : "Copy"}
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={downloadIcs}
-                className="text-[11px] mono inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-accent/30 bg-accent/10 text-accent hover:bg-accent/20 transition"
+                className="mono text-[11px] border-accent/30 bg-accent/10 text-accent hover:bg-accent/20"
               >
                 <Download className="size-3.5" /> Calendar
-              </button>
+              </Button>
             </div>
           }
         >
@@ -554,7 +542,15 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
 
         <Panel title="Active Alerts">
           <ul className="space-y-2.5">
-            {result.alerts.length === 0 && <li className="text-sm text-muted">No critical alerts.</li>}
+            {result.alerts.length === 0 && (
+              <li>
+                <EmptyState
+                  icon={CheckCircle2}
+                  title="No critical alerts"
+                  body="That's the good outcome — nothing on this lane crossed the threshold that warrants action before you ship."
+                />
+              </li>
+            )}
             {result.alerts.map((a, i) => (
               <li key={i} className="flex gap-2.5">
                 <AlertTriangle
@@ -1052,18 +1048,17 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <span className="text-[11px] mono tabular-nums text-muted">{s.results}</span>
-                <span
-                  className={
-                    "text-[9px] mono px-1.5 py-0.5 rounded border " +
-                    (s.mode === "live" ? "border-ok/40 text-ok bg-ok/10" : "border-warn/40 text-warn bg-warn/10")
-                  }
-                >
-                  {s.mode === "live" ? "LIVE" : "MOCK"}
-                </span>
+                <LiveBadge live={s.mode === "live"} />
               </div>
             </div>
           ))}
-          {searches.length === 0 && <div className="text-sm text-muted">No searches recorded.</div>}
+          {searches.length === 0 && (
+            <EmptyState
+              icon={Search}
+              title="No searches recorded"
+              body="Every live web lookup an agent runs is logged here with the sources it returned. An empty log means this run used the demo dataset."
+            />
+          )}
         </div>
       </Panel>
 
@@ -1072,28 +1067,14 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
       </div>
 
       {/* Risk factor detail modal */}
-      {selected && (
-        <div className="fixed inset-0 z-50 grid place-items-center p-4" onClick={() => setSelected(null)}>
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div
-            className="relative z-10 w-full max-w-lg rounded-2xl border border-border bg-panel p-5 shadow-2xl max-h-[85vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setSelected(null)}
-              className="absolute top-4 right-4 text-muted hover:text-foreground transition"
-              aria-label="Close"
-            >
-              <X className="size-5" />
-            </button>
-
-            <div className="flex items-center gap-2 mb-1">
-              {(() => {
-                const { Icon } = categoryMeta(selected.category);
-                return <Icon className="size-5 text-muted shrink-0" />;
-              })()}
-              <h3 className="text-base font-semibold">{categoryMeta(selected.category).label} Risk</h3>
-            </div>
+      <Modal
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        icon={selected ? <RiskCategoryIcon category={selected.category} /> : undefined}
+        title={selected ? `${categoryMeta(selected.category).label} Risk` : undefined}
+      >
+        {selected && (
+          <>
             <div className="flex items-center gap-3 mb-4">
               <span className="text-3xl font-bold tabular-nums" style={{ color: riskColor(selected.score) }}>
                 {selected.score}
@@ -1140,51 +1121,32 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
                 <ul className="space-y-1.5">
                   {selected.sources.map((s, i) => (
                     <li key={i}>
-                      <a
-                        href={s.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="group flex items-start gap-1.5 text-[13px] rounded-lg border border-border/60 bg-panel-2/40 px-2.5 py-2 hover:border-accent/40 transition"
-                      >
-                        <ExternalLink className="size-3.5 mt-0.5 shrink-0 text-muted group-hover:text-accent" />
-                        <span className="min-w-0">
-                          <span className="block leading-tight group-hover:text-accent transition">{s.title}</span>
-                          {s.snippet && <span className="block text-[11px] text-muted line-clamp-2 mt-0.5">{s.snippet}</span>}
-                        </span>
-                      </a>
+                      <SourceLink url={s.url} title={s.title} snippet={s.snippet} />
                     </li>
                   ))}
                 </ul>
               </div>
             )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* Port detail modal */}
-      {selectedPort && (
-        <div className="fixed inset-0 z-50 grid place-items-center p-4" onClick={() => setSelectedPort(null)}>
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div
-            className="relative z-10 w-full max-w-lg rounded-2xl border border-border bg-panel p-5 shadow-2xl max-h-[85vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setSelectedPort(null)}
-              className="absolute top-4 right-4 text-muted hover:text-foreground transition"
-              aria-label="Close"
-            >
-              <X className="size-5" />
-            </button>
-
-            <div className="flex items-center gap-2 mb-3">
-              <Anchor className="size-5 text-accent" />
-              <h3 className="text-base font-semibold">{selectedPort.name}</h3>
-              {selectedPort.recommended && (
-                <span className="text-[9px] mono px-1.5 py-0.5 rounded bg-accent/15 text-accent border border-accent/30">BEST</span>
-              )}
-            </div>
-
+      <Modal
+        open={!!selectedPort}
+        onClose={() => setSelectedPort(null)}
+        icon={<Anchor className="size-5 text-accent shrink-0" />}
+        title={
+          selectedPort ? (
+            <span className="flex items-center gap-2">
+              {selectedPort.name}
+              {selectedPort.recommended && <Badge tone="accent">best</Badge>}
+            </span>
+          ) : undefined
+        }
+      >
+        {selectedPort && (
+          <>
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div className="rounded-lg border border-border bg-panel-2/40 p-3 text-center">
                 <div className="text-[10px] mono text-muted mb-1">EST. FREIGHT</div>
@@ -1212,64 +1174,48 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
                 <ul className="space-y-1.5">
                   {selectedPort.sources.map((s, i) => (
                     <li key={i}>
-                      <a
-                        href={s.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="group flex items-start gap-1.5 text-[13px] rounded-lg border border-border/60 bg-panel-2/40 px-2.5 py-2 hover:border-accent/40 transition"
-                      >
-                        <ExternalLink className="size-3.5 mt-0.5 shrink-0 text-muted group-hover:text-accent" />
-                        <span className="min-w-0">
-                          <span className="block leading-tight group-hover:text-accent transition">{s.title}</span>
-                          {s.snippet && <span className="block text-[11px] text-muted line-clamp-2 mt-0.5">{s.snippet}</span>}
-                        </span>
-                      </a>
+                      <SourceLink url={s.url} title={s.title} snippet={s.snippet} />
                     </li>
                   ))}
                 </ul>
               </div>
             )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* Driver detail modal */}
-      {selectedDriver && (
-        <div className="fixed inset-0 z-50 grid place-items-center p-4" onClick={() => setSelectedDriver(null)}>
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div
-            className="relative z-10 w-full max-w-lg rounded-2xl border border-border bg-panel p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setSelectedDriver(null)}
-              className="absolute top-4 right-4 text-muted hover:text-foreground transition"
-              aria-label="Close"
-            >
-              <X className="size-5" />
-            </button>
-
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-base font-semibold">{selectedDriver.name}</h3>
-              <span className={cn("text-[9px] mono uppercase px-1.5 py-0.5 rounded border", {
-                "border-danger/40 text-danger bg-danger/10": selectedDriver.impact === "high",
-                "border-warn/40 text-warn bg-warn/10": selectedDriver.impact === "medium",
-                "border-border text-muted bg-panel-2": selectedDriver.impact === "low",
-              })}>
+      <Modal
+        open={!!selectedDriver}
+        onClose={() => setSelectedDriver(null)}
+        title={
+          selectedDriver ? (
+            <span className="flex items-center gap-2">
+              {selectedDriver.name}
+              <Badge
+                tone={
+                  selectedDriver.impact === "high"
+                    ? "danger"
+                    : selectedDriver.impact === "medium"
+                      ? "warn"
+                      : "neutral"
+                }
+              >
                 {selectedDriver.impact} impact
-              </span>
-            </div>
-            <p className="text-[12px] text-muted mb-4">{selectedDriver.affects}</p>
+              </Badge>
+            </span>
+          ) : undefined
+        }
+      >
+        {selectedDriver && (
+          <>
+            <p className="text-[12px] text-muted mb-4 -mt-2">{selectedDriver.affects}</p>
 
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="rounded-lg border border-border bg-panel-2/40 p-3">
                 <div className="text-[10px] mono text-muted mb-1 flex items-center gap-1.5">
                   CURRENT PRICE
-                  {selectedDriver.priceLive ? (
-                    <span className="text-ok flex items-center gap-1"><span className="size-1.5 rounded-full bg-ok" /> LIVE</span>
-                  ) : (
-                    <span className="text-warn">est.</span>
-                  )}
+                  <LiveBadge live={selectedDriver.priceLive} mockLabel="est." />
                 </div>
                 <div className="text-2xl font-bold tabular-nums">
                   {selectedDriver.current.toLocaleString("en-US")}
@@ -1330,26 +1276,15 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
                 <ul className="space-y-1.5">
                   {selectedDriver.sources.map((s, i) => (
                     <li key={i}>
-                      <a
-                        href={s.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="group flex items-start gap-1.5 text-[13px] rounded-lg border border-border/60 bg-panel-2/40 px-2.5 py-2 hover:border-accent/40 transition"
-                      >
-                        <ExternalLink className="size-3.5 mt-0.5 shrink-0 text-muted group-hover:text-accent" />
-                        <span className="min-w-0">
-                          <span className="block leading-tight group-hover:text-accent transition">{s.title}</span>
-                          {s.snippet && <span className="block text-[11px] text-muted line-clamp-2 mt-0.5">{s.snippet}</span>}
-                        </span>
-                      </a>
+                      <SourceLink url={s.url} title={s.title} snippet={s.snippet} />
                     </li>
                   ))}
                 </ul>
               </div>
             )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
