@@ -2,14 +2,17 @@
 
 **Plan a shipment before it moves. Watch it — and act — once it does.**
 
-The All Freight is a two-part supply-chain intelligence platform built on [Anakin](https://anakin.io) as its live-web layer:
+A supply-chain risk platform built on [Anakin](https://anakin.io) as its live-web layer. Three moves, joined by one object — the tracked shipment:
 
-1. **Plan** — describe a shipment (product, origin, destination, weight, ship date) and a fleet of AI agents researches live freight rates, tariffs, port congestion, weather, and geopolitical risk to return a single actionable risk score, cost/delay forecast, and recommended actions.
-2. **Ops Room** — a Sentinel agent watches a live AIS vessel feed for real disruptions (a ship stuck at anchor, an ETA slip). It opens a room, recruits a swarm of agents across three frameworks who negotiate a recovery option with real demurrage-cost exposure, a quorum vote and an adversarial dissent step produce one recommendation, and a human approves or rejects it — leaving a one-page audit dossier behind.
+1. **Plan** — describe a shipment and a pipeline of agents researches it against the live web: freight rates, tariffs and duty, port congestion, weather, geopolitical and supplier risk. You get a risk score, a cost and delay forecast, a recommended entry port and a dated action plan, every figure carrying its source.
+2. **Track** — keep the shipment and the pages that decide what a disruption would cost *on that lane* go under scheduled monitoring: the port's advisories, the carrier's demurrage tariff, the FMC billing rule. Changes land on the shipment as web signals.
+3. **Act** — when a vessel is actually disrupted at a monitored port, a room opens. Seven agents across three frameworks negotiate recovery options costed against the carrier's real published tariff rows, vote to a quorum, and an adversarial Dissent agent argues against the front-runner. Then a human approves or rejects, and the exchange becomes an audit dossier.
 
-Anakin is what makes both halves *live*: it's the web-search/scrape layer behind the planning flow, and it's what lets the Ops Room fetch real carrier tariff data and importer/bill-of-lading records from the open web instead of relying on manually-downloaded CSVs.
+Anakin is what makes all three live: search behind the research, AI structured extraction that turns a published tariff PDF into actual per-day rates the agents can negotiate over, deep research for synthesis, and scheduled monitoring that turns a one-off report into something continuous.
 
-**Live**: [the-all-freight.vercel.app](https://the-all-freight.vercel.app) (planning flow + `/ops` console) · backend at `https://136-119-139-202.nip.io`.
+**Live**: [the-all-freight.vercel.app](https://the-all-freight.vercel.app) · backend at `https://136-119-139-202.nip.io`.
+
+📄 **[docs/PRODUCT.md](docs/PRODUCT.md)** — the problem, who it hurts, and exactly where Anakin sits. Start there.
 
 ---
 
@@ -58,13 +61,22 @@ Every number in the Ops Room is either live (AIS positions) or cited (Maersk's p
 ## Project structure
 
 ```text
-src/                     Next.js app — planning flow (/) and ops console (/ops)
-  lib/anakin.ts          Anakin search + scrape client (with mock fallback, no key needed to demo)
-  lib/agents.ts          Product, commodity, freight, port, weather, geopolitical, supplier, regulatory agents
-  app/ops/               Ops console: vessel map, live room feed, options, approve/reject, dossier link
+src/
+  app/page.tsx           Watchlist — tracked shipments and what's happening to them
+  app/plan/              Planning flow, ending in "Track this shipment"
+  app/shipments/[id]/    One shipment: live activity, then its full analysis
+  app/ops/               Incident index (empty state doubles as the explanation)
+  app/ops/[id]/          The incident room: vessel map, feed, options, approve/reject, dossier
+  app/how-it-works/      What this is and why (server-rendered, no client JS)
+  components/ui.tsx      Shared primitives — Panel, Badge, Button, Modal, EmptyState, SourceLink
+  lib/anakin.ts          Live web layer: search, structured extraction, deep research
+  lib/agents.ts          The planning-flow research agents
+  lib/motion.ts          Motion tokens; reduced-motion is handled app-wide
 
-service/                 Python system — Ops Room backend + agent swarm
+service/                 Python system — ops backend + agent swarm
   backend/               FastAPI, AIS detector, cost/tariff engine, dossier, event relay
+  backend/monitors.py    Anakin page monitors + HMAC-verified webhook receiver
+  backend/shipment_matcher.py, ports.py   Incident → tracked-shipment attribution
   backend/anakin_client.py, tariff_fetcher.py, bol_live_lookup.py   Anakin integrations
   agents/room_bus/       Self-hosted room bus (Postgres + Redis)
   agents/{sentinel,logistics,carrier,finance,customer_impact,dissent,procurement}/
