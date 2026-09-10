@@ -61,10 +61,23 @@ export default function PlanPage() {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
+        let gotResult = false;
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            // A stream that ends without a result means it was cut off —
+            // a serverless timeout, or the connection dropping. Say so rather
+            // than leaving the agent console spinning forever.
+            if (!gotResult) {
+              setError(
+                "The analysis was interrupted before it finished. This usually means the request " +
+                  "exceeded the server's time limit — try again, or start from one of the sample shipments.",
+              );
+              setPhase("done");
+            }
+            break;
+          }
           buffer += decoder.decode(value, { stream: true });
           const parts = buffer.split("\n\n");
           buffer = parts.pop() ?? "";
@@ -84,9 +97,11 @@ export default function PlanPage() {
             } else if (evt.type === "log") {
               setLogs((p) => [...p, evt.message]);
             } else if (evt.type === "result") {
+              gotResult = true;
               setResult(evt.data);
               setPhase("done");
             } else if (evt.type === "error") {
+              gotResult = true;
               setError(evt.message);
               setPhase("done");
             }

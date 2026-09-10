@@ -2,7 +2,13 @@ import { runAnalysis } from "@/lib/orchestrator";
 import type { AnalyzeEvent, ShipmentInput } from "@/lib/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+// The pipeline runs ~30 live web searches and a chain of four sequential LLM
+// hops (product → intel fan-out → synthesis → summary/plan), so a real run
+// takes a couple of minutes. 120s was set back when every search was silently
+// failing fast with an HTTP 400 and the whole thing finished in seconds; once
+// the searches actually worked, production runs were being cut off at the limit
+// and no result event ever reached the client.
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   let input: ShipmentInput;
