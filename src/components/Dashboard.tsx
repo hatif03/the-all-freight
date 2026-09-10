@@ -40,6 +40,7 @@ import {
 import type { AnalysisResult, DependencyDriver, PortOption, RiskFactor } from "@/lib/types";
 import { categoryMeta, cn, fmtUsd, riskColor, riskLabel } from "@/lib/utils";
 import { Badge, Button, EmptyState, LiveBadge, Modal, Panel, SourceLink } from "./ui";
+import { CountUp } from "./CountUp";
 
 import { DependencyGraph } from "./DependencyGraph";
 
@@ -142,8 +143,8 @@ function DriverCard({ d, onClick }: { d: DependencyDriver; onClick?: () => void 
               labelFormatter={(l) => `${l}`}
               formatter={(v) => [`${Number(v).toLocaleString("en-US")} ${d.unit}`, d.name]}
             />
-            <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.75} fill={`url(#${gid})`} dot={false} connectNulls={false} />
-            <Line type="monotone" dataKey="f" stroke={color} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
+            <Area type="monotone" dataKey="v" stroke={color} strokeWidth={2} fill={`url(#${gid})`} dot={false} connectNulls={false} isAnimationActive={false} />
+            <Line type="monotone" dataKey="f" stroke={color} strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls isAnimationActive={false} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -276,7 +277,7 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
   return (
     <div className="flex flex-col gap-5">
       {/* Shipment summary — everything the user provided */}
-      <Panel title="Shipment" className="order-1">
+      <Panel title="Inputs used for this analysis" className="order-11">
         <div className="flex flex-wrap items-stretch gap-x-6 gap-y-3">
           {[
             ["Product", result.input.product],
@@ -308,7 +309,7 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
       </Panel>
 
       {/* Headline KPI row */}
-      <div className="order-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="order-1 grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Risk gauge */}
         <Panel title="Global Risk Score" className="flex flex-col items-center justify-center">
           <div className="relative w-full h-44">
@@ -325,9 +326,13 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
               </RadialBarChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <div className="text-5xl font-bold tabular-nums" style={{ color: riskColor(riskScore) }}>
-                {riskScore}
-              </div>
+              {/* Counts up alongside Recharts' own arc sweep, so the number and
+                  the dial arrive together. */}
+              <CountUp
+                value={riskScore}
+                className="text-5xl font-bold tabular-nums"
+                style={{ color: riskColor(riskScore) }}
+              />
               <div className="text-[11px] mono text-muted">/ 100</div>
               <div className="mt-1 text-xs font-semibold" style={{ color: riskColor(riskScore) }}>
                 {riskLabel(riskScore)} risk
@@ -430,7 +435,7 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
       {/* Prioritized action plan */}
       {actionPlan.length > 0 && (
         <Panel
-          className="order-10"
+          className="order-2"
           title="Action Plan"
           action={
             <div className="flex items-center gap-3">
@@ -510,7 +515,7 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
       )}
 
       {/* Executive summary + alerts */}
-      <div className="order-2 grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="order-3 grid grid-cols-1 lg:grid-cols-3 gap-5">
         <Panel title="Executive Summary" className="lg:col-span-2">
           <p className="text-sm leading-relaxed text-foreground/90">{result.executiveSummary}</p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -557,7 +562,7 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
       </div>
 
       {/* Risk factors grid */}
-      <Panel title="Risk Factors by Category" className="order-7">
+      <Panel title="Risk Factors by Category" className="order-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {sortedFactors.map((f) => {
             const meta = categoryMeta(f.category);
@@ -598,7 +603,7 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
       {/* Tariffs & Regulations */}
       {result.tariff && (
         <Panel
-          className="order-8"
+          className="order-6"
           title="Tariffs & Regulations"
           action={
             <span className="text-[10px] mono text-muted flex items-center gap-1.5">
@@ -710,7 +715,7 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
       )}
 
       {/* Cost forecast + routes */}
-      <div className="order-3 grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="order-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Panel title="Cost Forecast">
           {/* Headline exposure + plain-English explanation */}
           <div className="rounded-xl border border-border bg-panel-2/40 p-3.5 mb-3">
@@ -813,7 +818,7 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
       </div>
 
       {/* Route map + transit time */}
-      <div className="order-4 grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="order-8 grid grid-cols-1 lg:grid-cols-3 gap-5">
         <Panel
           title="Shipping Route"
           className="lg:col-span-2"
@@ -891,7 +896,7 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
       {/* AI port recommendation */}
       {result.portRecommendation && result.portRecommendation.options.length > 0 && (
         <Panel
-          className="order-5"
+          className="order-7"
           title="AI Port Recommendation"
           action={<span className="text-[10px] mono text-muted">prices for {recRoute?.method ?? "Ocean"} · congestion via Anakin</span>}
         >
@@ -963,7 +968,7 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
       </Panel>
 
       {/* Dependency graph + news */}
-      <div className="order-11 grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="order-10 grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Panel
           title="Supply-Chain Dependency Graph"
           action={

@@ -728,7 +728,7 @@ export default function OpsIncidentPage() {
           <div className="flex flex-col gap-4">
             {/* Human gate — approval */}
             {snapshot.incident && activePhase === "awaiting_approval" && (
-              <div className="rounded-2xl p-4 md:p-5 border border-accent/40 bg-panel/70">
+              <div className="rounded-2xl p-4 md:p-5 border border-accent/40 bg-panel shadow-panel">
                 <div className="flex items-center gap-2.5 border-b border-border pb-3">
                   <ShieldCheck className="h-6 w-6 text-accent" />
                   <div>
@@ -1051,7 +1051,7 @@ export default function OpsIncidentPage() {
 
         {/* Agent roster strip */}
         {snapshot.participants.length > 0 && (
-          <div className="rounded-2xl border border-border bg-panel/70 mt-5 px-4 py-3.5 flex items-center gap-3.5 flex-wrap">
+          <div className="rounded-2xl border border-border bg-panel shadow-panel mt-5 px-4 py-3.5 flex items-center gap-3.5 flex-wrap">
             <span className="mono text-[10px] tracking-wider text-muted/70 uppercase">Collaborating via room bus</span>
             <div className="flex gap-2 flex-wrap">
               {snapshot.participants.map((p, idx) => (

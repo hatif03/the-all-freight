@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Panel } from "./ui";
 import { Loader2, Play } from "lucide-react";
 import type { ShipmentInput } from "@/lib/types";
 
@@ -42,7 +43,7 @@ export function AnalyzeForm({
   const set = (patch: Partial<ShipmentInput>) => setInput((p) => ({ ...p, ...patch }));
 
   return (
-    <div className="rounded-2xl border border-border bg-panel/70 p-5 sm:p-6">
+    <Panel className="sm:p-6">
       <div className="flex flex-wrap gap-2 mb-5">
         {PRESETS.map((p) => (
           <button
@@ -173,6 +174,6 @@ export function AnalyzeForm({
           </button>
         </div>
       </form>
-    </div>
+    </Panel>
   );
 }

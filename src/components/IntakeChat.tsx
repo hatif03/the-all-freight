@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { fade } from "@/lib/motion";
 import { ArrowUp, Loader2 } from "lucide-react";
 import type { IntakeResult, ShipmentInput } from "@/lib/types";
 
@@ -36,9 +38,10 @@ function computeMissing(p: Partial<ShipmentInput>): string[] {
   return m;
 }
 
-function greeting(): string {
-  // Deterministic on the server; refined on the client after mount.
-  return "Good day.";
+function timeGreeting(hour: number): string {
+  if (hour < 12) return "Good morning.";
+  if (hour < 18) return "Good afternoon.";
+  return "Good evening.";
 }
 
 export function IntakeChat({
@@ -54,14 +57,20 @@ export function IntakeChat({
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [chat, setChat] = useState("");
   const [parsing, setParsing] = useState(false);
-  const [hello, setHello] = useState(greeting());
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const threadRef = useRef<HTMLDivElement>(null);
 
-  // Time-aware greeting on the client.
+  // The greeting depends on the viewer's clock, which the server can't know.
+  // Rendering a placeholder and correcting it after mount produced a visible
+  // text swap on every load, so instead nothing is rendered until mount and
+  // the real greeting fades in once. No placeholder, no swap, no mismatch.
+  const [hour, setHour] = useState<number | null>(null);
   useEffect(() => {
-    const h = new Date().getHours();
-    setHello(h < 12 ? "Good morning." : h < 18 ? "Good afternoon." : "Good evening.");
+    // The viewer's local hour is only knowable after mount; there's no render
+    // path that can produce it, so this write is the point of the effect
+    // rather than an accidental cascade.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHour(new Date().getHours());
   }, []);
 
   const setField = (k: keyof ShipmentInput, v: string | number | string[]) =>
@@ -136,7 +145,13 @@ export function IntakeChat({
     <div className="w-full max-w-2xl mx-auto">
       {/* Greeting */}
       <div className="text-center mb-8">
-        <h1 className="serif text-5xl sm:text-6xl tracking-tight text-foreground">{hello}</h1>
+        <h1 className="serif text-5xl sm:text-6xl tracking-tight text-foreground min-h-[1.1em]">
+          {hour !== null && (
+            <motion.span {...fade} className="inline-block">
+              {timeGreeting(hour)}
+            </motion.span>
+          )}
+        </h1>
         <p className="text-foreground/70 mt-3 text-[15px] max-w-md mx-auto">
           Tell me what you&apos;re shipping, from where to where, the weight, price per kg, ship date, mode, and any
           special handling. I&apos;ll ask for anything you miss.
