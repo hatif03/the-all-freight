@@ -51,7 +51,7 @@ export function VesselMap({
         const el = document.createElement("div");
         el.className = isDisrupted
           ? "w-8 h-8 rounded-full flex items-center justify-center cursor-pointer ops-vessel-marker"
-          : "w-5 h-5 rounded-full border border-accent-2/60 bg-ops-surface/80 flex items-center justify-center cursor-pointer hover:bg-accent-2 transition-colors";
+          : "w-5 h-5 rounded-full border border-accent-2/60 bg-panel/80 flex items-center justify-center cursor-pointer hover:bg-accent-2 transition-colors";
         el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${isDisrupted ? 16 : 10}" height="${isDisrupted ? 16 : 10}" viewBox="0 0 24 24" fill="none" stroke="${isDisrupted ? "#ffffff" : "#0284c7"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 21h20"/><path d="M19.3 14.8C21.1 13.5 22 11.7 22 10c0-3.9-3.1-7-7-7-2 0-3.8.8-5.2 2.2L3 12v6h6l6.8-6.8c1.4-1.4 3.2-2.2 5.2-2.2z"/></svg>`;
 
         const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`
@@ -141,18 +141,18 @@ export function VesselMap({
   }, [disruptedMmsi]);
 
   return (
-    <div className="bg-ops-surface/70 border border-ops-line rounded-2xl overflow-hidden relative">
+    <div className="bg-panel border border-border rounded-2xl overflow-hidden relative">
       <div ref={containerRef} className="w-full h-[300px] md:h-[340px]" />
 
-      <div className="absolute top-3.5 left-3.5 text-[10px] mono text-ops-mute tracking-wider pointer-events-none">
+      <div className="absolute top-3.5 left-3.5 text-[10px] mono text-muted tracking-wider pointer-events-none">
         {port ? `${port.toUpperCase()} · ANCHORAGE` : "AWAITING DISRUPTION SIGNAL"}
       </div>
 
-      <div className="absolute bottom-3 left-3.5 flex items-center gap-2 bg-ops-surface/70 backdrop-blur border border-ok/25 px-2.5 py-1.5 rounded-lg">
+      <div className="absolute bottom-3 left-3.5 flex items-center gap-2 bg-panel backdrop-blur border border-ok/25 px-2.5 py-1.5 rounded-lg">
         <span className="w-1.5 h-1.5 rounded-full bg-ok" />
         <span className="text-[10px] mono text-ok">Vessel reporting · satellite stream</span>
       </div>
-      <div className="absolute bottom-3 right-3.5 text-[9px] mono text-ops-faint pointer-events-none">
+      <div className="absolute bottom-3 right-3.5 text-[9px] mono text-muted/70 pointer-events-none">
         MapLibre GL · CartoDB
       </div>
     </div>
