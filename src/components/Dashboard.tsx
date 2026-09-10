@@ -522,7 +522,7 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
                         </span>
                       </div>
                       <div className="text-[11px] text-muted mt-0.5 flex items-center gap-1.5">
-                        <span>{meta.icon}</span>
+                        <meta.Icon className="size-3.5 shrink-0" />
                         <span className="truncate">{a.why}</span>
                       </div>
                     </div>
@@ -587,7 +587,7 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[13px] font-medium flex items-center gap-1.5 text-muted">
-                    <span>{meta.icon}</span> {meta.label}
+                    <meta.Icon className="size-4 shrink-0" /> {meta.label}
                   </span>
                   <span
                     className="mono text-[11px] tabular-nums font-semibold flex items-center gap-1 px-1.5 py-0.5 rounded"
@@ -1088,7 +1088,10 @@ export function Dashboard({ result }: { result: AnalysisResult }) {
             </button>
 
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-lg">{categoryMeta(selected.category).icon}</span>
+              {(() => {
+                const { Icon } = categoryMeta(selected.category);
+                return <Icon className="size-5 text-muted shrink-0" />;
+              })()}
               <h3 className="text-base font-semibold">{categoryMeta(selected.category).label} Risk</h3>
             </div>
             <div className="flex items-center gap-3 mb-4">
