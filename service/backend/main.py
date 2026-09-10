@@ -13,12 +13,13 @@ from redis_client import get_redis_client
 import subprocess
 import json
 import datetime
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
-from models import Incident, DisruptionEvent, RecoveryOption, AffectedParty, Participant, Vote, Dissent, Decision, Vessel
+from models import Incident, DisruptionEvent, RecoveryOption, AffectedParty, Participant, Vote, Dissent, Decision, Vessel, TrackedShipment, ShipmentIncidentLink
 from events import publish_room_event
 from dossier import build_dossier
-from ports import PORTS
+from ports import PORTS, PORTS_BY_CODE, resolve_port_code
+from shipment_matcher import link_shipment_to_open_incidents
 from typing import Optional
 from pydantic import BaseModel
 # Real, cited tariff source used only for options that carry a Finance-computed
@@ -179,6 +180,21 @@ async def trigger_replay(background_tasks: BackgroundTasks, file_path: str = Non
     return {"status": "triggered", "message": f"Kicked off replay of {file_path} (speed={speed})"}
 
 # Helper to format incident payload
+# Everything `format_incident_payload` touches has to be eagerly loaded — a
+# lazy load on an async session raises rather than emitting a query. This list
+# was duplicated across all five incident queries, which is how the payload
+# gained a field that four of them didn't load; keep it in one place.
+INCIDENT_LOAD_OPTIONS = (
+    selectinload(Incident.event).selectinload(DisruptionEvent.vessel),
+    selectinload(Incident.event).selectinload(DisruptionEvent.affected_parties),
+    selectinload(Incident.options),
+    selectinload(Incident.participants),
+    selectinload(Incident.votes),
+    selectinload(Incident.dissents),
+    selectinload(Incident.shipment_links).selectinload(ShipmentIncidentLink.shipment),
+)
+
+
 async def format_incident_payload(incident: Incident) -> dict:
     event = incident.event
     vessel_name = event.vessel.name if (event and event.vessel) else ""
@@ -204,6 +220,22 @@ async def format_incident_payload(incident: Incident) -> dict:
                 "basis": p.basis,
                 "source_url": p.source_url or ""
             })
+
+    # Tracked shipments this incident was attributed to — the reverse of the
+    # link the shipment page shows, so the ops room can say whose shipment this
+    # actually touches instead of being an anonymous global feed.
+    linked_shipments = []
+    for link in (incident.shipment_links or []):
+        if not link.shipment:
+            continue
+        linked_shipments.append({
+            "id": link.shipment.id,
+            "product": link.shipment.product,
+            "origin": link.shipment.origin,
+            "destination": link.shipment.destination,
+            "inferred": link.inferred,
+            "basis": link.basis,
+        })
 
     options = []
     for o in incident.options:
@@ -272,6 +304,7 @@ async def format_incident_payload(incident: Incident) -> dict:
         },
         "event": event_data,
         "affected_parties": affected_parties,
+        "linked_shipments": linked_shipments,
         "options": options,
         "participants": participants,
         "recommendation": recommendation,
@@ -287,12 +320,7 @@ async def get_active_incident(db=Depends(get_db)):
         .order_by(Incident.id.desc())
         .limit(1)
         .options(
-            selectinload(Incident.event).selectinload(DisruptionEvent.vessel),
-            selectinload(Incident.event).selectinload(DisruptionEvent.affected_parties),
-            selectinload(Incident.options),
-            selectinload(Incident.participants),
-            selectinload(Incident.votes),
-            selectinload(Incident.dissents),
+            *INCIDENT_LOAD_OPTIONS,
         )
     )
     res = await db.execute(stmt)
@@ -305,12 +333,7 @@ async def get_active_incident(db=Depends(get_db)):
             .order_by(Incident.id.desc())
             .limit(1)
             .options(
-                selectinload(Incident.event).selectinload(DisruptionEvent.vessel),
-                selectinload(Incident.event).selectinload(DisruptionEvent.affected_parties),
-                selectinload(Incident.options),
-                selectinload(Incident.participants),
-                selectinload(Incident.votes),
-                selectinload(Incident.dissents),
+                *INCIDENT_LOAD_OPTIONS,
             )
         )
         res_latest = await db.execute(stmt_latest)
@@ -328,12 +351,7 @@ async def get_incident_by_id(id: int, db=Depends(get_db)):
         select(Incident)
         .where(Incident.id == id)
         .options(
-            selectinload(Incident.event).selectinload(DisruptionEvent.vessel),
-            selectinload(Incident.event).selectinload(DisruptionEvent.affected_parties),
-            selectinload(Incident.options),
-            selectinload(Incident.participants),
-            selectinload(Incident.votes),
-            selectinload(Incident.dissents),
+            *INCIDENT_LOAD_OPTIONS,
         )
     )
     res = await db.execute(stmt)
@@ -357,12 +375,7 @@ async def record_decision(id: int, req: DecisionRequest, db=Depends(get_db)):
         select(Incident)
         .where(Incident.id == id)
         .options(
-            selectinload(Incident.event).selectinload(DisruptionEvent.vessel),
-            selectinload(Incident.event).selectinload(DisruptionEvent.affected_parties),
-            selectinload(Incident.options),
-            selectinload(Incident.participants),
-            selectinload(Incident.votes),
-            selectinload(Incident.dissents),
+            *INCIDENT_LOAD_OPTIONS,
         )
     )
     res = await db.execute(stmt)
@@ -439,12 +452,7 @@ async def record_decision(id: int, req: DecisionRequest, db=Depends(get_db)):
         select(Incident)
         .where(Incident.id == id)
         .options(
-            selectinload(Incident.event).selectinload(DisruptionEvent.vessel),
-            selectinload(Incident.event).selectinload(DisruptionEvent.affected_parties),
-            selectinload(Incident.options),
-            selectinload(Incident.participants),
-            selectinload(Incident.votes),
-            selectinload(Incident.dissents),
+            *INCIDENT_LOAD_OPTIONS,
         )
     )
     res_updated = await db.execute(stmt_updated)
@@ -542,6 +550,219 @@ async def refresh_tariffs_endpoint():
     """
     loaded = await refresh_tariffs()
     return {"loaded": loaded, "source_url": MAERSK_IMPORT_TARIFF_URL}
+
+
+class TrackShipmentRequest(BaseModel):
+    # Just the AnalysisResult, verbatim from the planning flow's SSE `result`
+    # event. Every summary column is derived server-side so that the writer and
+    # the incident matcher resolve ports through exactly one code path.
+    analysis: dict
+
+
+def _shipment_summary(shipment: TrackedShipment, open_incidents: int = 0) -> dict:
+    port = PORTS_BY_CODE.get(shipment.port_code) if shipment.port_code else None
+    return {
+        "id": shipment.id,
+        "product": shipment.product,
+        "origin": shipment.origin,
+        "destination": shipment.destination,
+        "ship_date": shipment.ship_date,
+        "mode": shipment.mode,
+        "risk_score": shipment.risk_score,
+        "entry_port": shipment.entry_port,
+        "port_code": shipment.port_code,
+        "port_name": port.name if port else None,
+        "port_match_field": shipment.port_match_field,
+        "port_match_basis": shipment.port_match_basis,
+        "monitored": bool(shipment.port_code),
+        "open_incident_count": open_incidents,
+        "created_at": shipment.created_at.isoformat() if shipment.created_at else None,
+    }
+
+
+@app.post("/shipments", status_code=201)
+async def track_shipment(req: TrackShipmentRequest, db=Depends(get_db)):
+    """Persist a planning analysis as a shipment to keep watching."""
+    analysis = req.analysis or {}
+    shipment_input = analysis.get("input") or {}
+    if not shipment_input.get("product"):
+        raise HTTPException(status_code=422, detail="analysis.input.product is required")
+
+    recommendation = analysis.get("portRecommendation") or {}
+    entry_port = recommendation.get("recommended")
+    destination = shipment_input.get("destination") or ""
+
+    # Resolve once, here, and persist the reason — see shipment_matcher.
+    resolved = resolve_port_code(entry_port, destination)
+    port_code = port_match_field = port_match_basis = None
+    if resolved:
+        port_code, alias, matched_text = resolved
+        port_match_field = "entry_port" if matched_text == entry_port else "destination"
+        port = PORTS_BY_CODE.get(port_code)
+        port_match_basis = (
+            f'{"Recommended entry port" if port_match_field == "entry_port" else "Destination"} '
+            f'"{matched_text}" matched monitored port {port.name if port else port_code} '
+            f'on alias "{alias}".'
+        )
+
+    shipment = TrackedShipment(
+        product=shipment_input.get("product") or "",
+        origin=shipment_input.get("origin") or "",
+        destination=destination,
+        ship_date=shipment_input.get("shipDate"),
+        mode=shipment_input.get("shippingMode"),
+        risk_score=int(analysis.get("riskScore") or 0),
+        entry_port=entry_port,
+        port_code=port_code,
+        port_match_field=port_match_field,
+        port_match_basis=port_match_basis,
+        analysis=analysis,
+    )
+    db.add(shipment)
+    await db.commit()
+    await db.refresh(shipment)
+
+    # A relevant incident may already be running; without this the shipment
+    # would show nothing until the next disruption.
+    await link_shipment_to_open_incidents(db, shipment)
+
+    return await _shipment_detail(db, shipment)
+
+
+@app.get("/shipments")
+async def list_shipments(db=Depends(get_db)):
+    """Watchlist rows. Deliberately never selects `analysis` — the blob is
+    40-150KB per shipment and nothing in a list view reads it."""
+    open_count = (
+        func.count(ShipmentIncidentLink.id)
+        .filter(Incident.phase.notin_(("approved", "rejected")))
+        .label("open_incidents")
+    )
+    rows = (
+        await db.execute(
+            select(
+                TrackedShipment.id,
+                TrackedShipment.product,
+                TrackedShipment.origin,
+                TrackedShipment.destination,
+                TrackedShipment.ship_date,
+                TrackedShipment.mode,
+                TrackedShipment.risk_score,
+                TrackedShipment.entry_port,
+                TrackedShipment.port_code,
+                TrackedShipment.port_match_field,
+                TrackedShipment.port_match_basis,
+                TrackedShipment.created_at,
+                open_count,
+            )
+            # One grouped query rather than a count per row: the Supabase
+            # session pooler caps concurrent clients, so N+1 here is what takes
+            # the whole backend down under a handful of shipments.
+            .outerjoin(ShipmentIncidentLink, ShipmentIncidentLink.shipment_id == TrackedShipment.id)
+            .outerjoin(Incident, Incident.id == ShipmentIncidentLink.incident_id)
+            .group_by(TrackedShipment.id)
+            .order_by(TrackedShipment.id.desc())
+        )
+    ).all()
+
+    return [_shipment_summary(row, row.open_incidents) for row in rows]
+
+
+async def _shipment_detail(db, shipment: TrackedShipment) -> dict:
+    links = (
+        await db.execute(
+            select(ShipmentIncidentLink, Incident, DisruptionEvent)
+            .join(Incident, Incident.id == ShipmentIncidentLink.incident_id)
+            .join(DisruptionEvent, DisruptionEvent.id == Incident.event_id)
+            .where(ShipmentIncidentLink.shipment_id == shipment.id)
+            .order_by(Incident.id.desc())
+        )
+    ).all()
+
+    incidents = [
+        {
+            "incident_id": incident.id,
+            "phase": incident.phase,
+            "port": event.port,
+            "type": event.type,
+            "severity": event.severity,
+            "detected_at": event.detected_at.isoformat() if event.detected_at else None,
+            "inferred": link.inferred,
+            "basis": link.basis,
+        }
+        for link, incident, event in links
+    ]
+    open_count = sum(1 for i in incidents if i["phase"] not in ("approved", "rejected"))
+    return {
+        **_shipment_summary(shipment, open_count),
+        "analysis": shipment.analysis,
+        "incidents": incidents,
+    }
+
+
+@app.get("/shipments/{id}")
+async def get_shipment(id: int, db=Depends(get_db)):
+    shipment = (
+        await db.execute(select(TrackedShipment).where(TrackedShipment.id == id))
+    ).scalar_one_or_none()
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    return await _shipment_detail(db, shipment)
+
+
+@app.delete("/shipments/{id}", status_code=204)
+async def delete_shipment(id: int, db=Depends(get_db)):
+    shipment = (
+        await db.execute(select(TrackedShipment).where(TrackedShipment.id == id))
+    ).scalar_one_or_none()
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    await db.delete(shipment)
+    await db.commit()
+    return None
+
+
+@app.get("/incidents")
+async def list_incidents(db=Depends(get_db)):
+    """Incident index for the ops room, newest first."""
+    rows = (
+        await db.execute(
+            select(Incident)
+            .options(
+                selectinload(Incident.event),
+                selectinload(Incident.shipment_links).selectinload(ShipmentIncidentLink.shipment),
+            )
+            .order_by(Incident.id.desc())
+            .limit(20)
+        )
+    ).scalars().all()
+
+    return [
+        {
+            "id": incident.id,
+            "phase": incident.phase,
+            "port": incident.event.port if incident.event else None,
+            "vessel_mmsi": incident.event.mmsi if incident.event else None,
+            "type": incident.event.type if incident.event else None,
+            "severity": incident.event.severity if incident.event else None,
+            "detected_at": (
+                incident.event.detected_at.isoformat() if incident.event and incident.event.detected_at else None
+            ),
+            "linked_shipments": [
+                {
+                    "id": link.shipment.id,
+                    "product": link.shipment.product,
+                    "origin": link.shipment.origin,
+                    "destination": link.shipment.destination,
+                    "inferred": link.inferred,
+                    "basis": link.basis,
+                }
+                for link in incident.shipment_links
+                if link.shipment
+            ],
+        }
+        for incident in rows
+    ]
 
 
 class LLMCompletionRequest(BaseModel):

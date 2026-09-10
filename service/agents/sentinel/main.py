@@ -26,6 +26,7 @@ from sqlalchemy.orm import selectinload  # noqa: E402
 from database import SessionLocal  # noqa: E402
 from redis_client import get_redis_client  # noqa: E402
 from affected_party_resolver import resolve_affected_parties  # noqa: E402
+from shipment_matcher import link_incident_to_shipments  # noqa: E402
 from models import Incident, RecoveryOption, Dissent, Vote, Decision, AffectedParty  # noqa: E402
 from events import publish_room_event  # noqa: E402
 
@@ -360,6 +361,12 @@ async def listen_disruptions(redis_client) -> None:
                                 session.add(party)
                             await session.commit()
                             print("Saved AffectedParty rows to DB.")
+
+                            # 2b. Attribute the incident to any tracked shipment
+                            # routing through this monitored port. Port-level
+                            # match only, and every link stores its own basis.
+                            linked = await link_incident_to_shipments(session, incident.id, port)
+                            print(f"Linked incident to {linked} tracked shipment(s).")
 
                             # 3. Recruit the negotiating agents (idempotent Participant insert)
                             recruits = registry.all_recruitable()
