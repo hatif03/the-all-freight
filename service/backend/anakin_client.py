@@ -12,6 +12,7 @@ Two capabilities are used elsewhere in this service:
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Optional
 
 import httpx
@@ -19,6 +20,26 @@ import httpx
 from config import settings
 
 ANAKIN_BASE_URL = "https://api.anakin.io/v1"
+
+POLL_INTERVAL_SECONDS = 5.0
+POLL_MAX_ATTEMPTS = 24  # ~2 min ceiling for a slow PDF extraction
+
+
+def extract_generated(response: Any) -> dict[str, Any]:
+    """Unwrap an AI-extraction response down to the schema-shaped payload.
+
+    The scraper nests it as `{"generatedJson": {"data": {...}, "status": "success"}}`
+    alongside `markdown`/`html`/`cleanedHtml`. Unwrapping here, in the one place
+    every caller goes through, is why callers can just read their own schema's
+    keys off the return value.
+    """
+    if not isinstance(response, dict):
+        return {}
+    generated = response.get("generatedJson")
+    if not isinstance(generated, dict):
+        return {}
+    data = generated.get("data")
+    return data if isinstance(data, dict) else {}
 
 
 class AnakinClient:
@@ -35,13 +56,38 @@ class AnakinClient:
         return bool(self.api_key)
 
     async def scrape_url(self, url: str, output_schema: dict[str, Any], *, prompt: Optional[str] = None) -> Any:
-        """Sync inline URL-scraper call: returns data shaped by `output_schema`."""
-        payload: dict[str, Any] = {"url": url, "outputSchema": output_schema}
+        """Sync inline URL-scraper call: returns data shaped by `output_schema`.
+
+        `generateJson` is what actually turns on AI extraction — it defaults to
+        false, so without it the response carries markdown/html but no
+        `generatedJson` at all, and every caller silently gets nothing.
+        """
+        payload: dict[str, Any] = {
+            "url": url,
+            "generateJson": True,
+            "outputSchema": output_schema,
+        }
         if prompt:
             payload["prompt"] = prompt
         response = await self._client.post("/url-scraper/scrape", json=payload)
         response.raise_for_status()
-        return response.json()
+        body = response.json()
+
+        # The "inline" endpoint only stays inline while the scrape finishes
+        # inside its own window; a slow page (large PDFs, mostly) comes back
+        # `processing` with just an id, and the result has to be polled for.
+        job_id = body.get("id") if isinstance(body, dict) else None
+        for _ in range(POLL_MAX_ATTEMPTS):
+            if not isinstance(body, dict) or body.get("status") not in ("processing", "pending"):
+                break
+            if not job_id:
+                break
+            await asyncio.sleep(POLL_INTERVAL_SECONDS)
+            polled = await self._client.get(f"/url-scraper/{job_id}")
+            polled.raise_for_status()
+            body = polled.json()
+
+        return extract_generated(body)
 
     async def wire_catalog(self, query: Optional[str] = None) -> Any:
         """List available Wire site actions, optionally filtered by `query`."""

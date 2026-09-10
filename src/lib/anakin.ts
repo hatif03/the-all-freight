@@ -30,6 +30,10 @@ export interface SearchLogEntry {
 let searchLog: SearchLogEntry[] = [];
 export function resetSearchLog(): void {
   searchLog = [];
+  // `liveUsed` is module-global and this module outlives a single request, so
+  // without clearing it here one live call would make every later analysis in
+  // the same server process claim `dataMode: "live"`.
+  liveUsed = false;
 }
 export function getSearchLog(): SearchLogEntry[] {
   return searchLog;
@@ -92,7 +96,9 @@ export async function anakinSearch(query: string, limit = 5): Promise<Source[]> 
         fetch(`${API_BASE}/search`, {
           method: "POST",
           headers: headers(),
-          body: JSON.stringify({ query }),
+          // The field is `prompt`, not `query` — sending `query` returns
+          // HTTP 400 "Prompt is required". `limit` caps at 20 server-side.
+          body: JSON.stringify({ prompt: query, limit: Math.min(limit, 20) }),
         }),
         18_000, // a slow query falls back to mock rather than stalling the run
       );
@@ -104,8 +110,13 @@ export async function anakinSearch(query: string, limit = 5): Promise<Source[]> 
           searchLog.push({ query, results: sources.length, mode: "live", sources });
           return sources;
         }
+        console.error(`[anakin] search "${query}" returned no parseable sources`);
       } else {
-        console.error(`[anakin] search "${query}" failed: HTTP ${res.status}`);
+        // Log the body, not just the status — a silent contract change here is
+        // what let every search 400 for the life of the project unnoticed.
+        console.error(
+          `[anakin] search "${query}" failed: HTTP ${res.status} ${await res.text().catch(() => "")}`,
+        );
       }
     } catch (err) {
       console.error(`[anakin] search "${query}" failed:`, err);
