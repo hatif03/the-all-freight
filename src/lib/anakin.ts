@@ -1,13 +1,20 @@
-// Web-search / scrape integration layer.
+// Live web layer, built on Anakin's REST API. Three capabilities:
 //
-// Primary path: Anakin's REST API — a synchronous AI web search with citations
-// (`/v1/search`) and a synchronous URL scraper (`/v1/url-scraper/scrape`). Both are
-// plain `fetch` calls, no subprocess, no job/poll cycle.
+//   anakinSearch       `/v1/search` — synchronous AI web search with citations.
+//   anakinExtract      `/v1/url-scraper/scrape` — AI-extract structured data from
+//                      one page against a JSON Schema. Handles both the inline
+//                      response and the job-id-to-poll shape a slow page returns.
+//   anakinDeepResearch `/v1/agentic-search` — multi-stage research pipeline
+//                      (refine, search, scrape, synthesise). Async, ~35s.
 //
-// Fallback path: if no API key is configured, the request errors, times out, or the
-// response can't be parsed into usable sources, we degrade gracefully to realistic
-// synthetic results so the demo never breaks on stage. `dataMode` in the final result
-// reflects which path was used.
+// The batch scraper (`/v1/url-scraper/batch`) is deliberately unused: it's async
+// and needs its own polling path to save nothing over `Promise.all` across the
+// inline endpoint.
+//
+// Fallback: with no API key, or on error/timeout/unparseable response, search
+// degrades to synthetic results so a cold clone still demos. Every call records
+// its outcome in `searchLog`, and `dataMode` reports whether anything real was
+// fetched — so the UI can always say which numbers came off the live web.
 
 import type { Source } from "./types";
 
@@ -127,32 +134,142 @@ export async function anakinSearch(query: string, limit = 5): Promise<Source[]> 
   return mock;
 }
 
-/** Scrape a single URL to markdown/text via Anakin's synchronous URL scraper. */
-export async function anakinScrape(url: string): Promise<string> {
-  if (!API_KEY) return "";
+// A successful extraction or research call is itself a citable live source, so
+// it lands in the same log the transparency panel reads — otherwise the panel
+// would under-report how much of a result came off the live web.
+function logLive(label: string, sources: Source[]): void {
+  liveUsed = true;
+  searchLog.push({ query: label, results: sources.length, mode: "live", sources });
+}
+
+function logMiss(label: string): void {
+  searchLog.push({ query: label, results: 0, mode: "mock", sources: [] });
+}
+
+/**
+ * AI-extract structured data from one page, shaped by a JSON Schema.
+ *
+ * `generateJson` is what turns extraction on (it defaults to false) and the
+ * payload comes back nested under `generatedJson.data`. A slow page — large
+ * PDFs, mostly — exceeds the inline window and returns a job id to poll
+ * instead, so both shapes are handled here.
+ */
+export async function anakinExtract<T>(
+  url: string,
+  outputSchema: Record<string, unknown>,
+  prompt: string,
+  sourceTitle?: string,
+): Promise<T | null> {
+  const label = `extract: ${sourceTitle || url}`;
+  if (!API_KEY) {
+    logMiss(label);
+    return null;
+  }
   try {
     const res = await withTimeout(
       fetch(`${API_BASE}/url-scraper/scrape`, {
         method: "POST",
         headers: headers(),
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, generateJson: true, outputSchema, prompt }),
       }),
-      45_000,
+      60_000,
     );
     if (!res.ok) {
-      console.error(`[anakin] scrape "${url}" failed: HTTP ${res.status}`);
-      return "";
+      console.error(`[anakin] extract "${url}" failed: HTTP ${res.status} ${await res.text().catch(() => "")}`);
+      logMiss(label);
+      return null;
     }
-    const data = await res.json();
-    const text: unknown = data?.markdown ?? data?.content ?? data?.text ?? "";
-    if (typeof text === "string" && text) {
-      liveUsed = true;
-      return text;
+
+    let body = await res.json();
+    for (let i = 0; i < 10 && (body?.status === "processing" || body?.status === "pending"); i++) {
+      if (!body?.id) break;
+      await new Promise((r) => setTimeout(r, 5_000));
+      const polled = await fetch(`${API_BASE}/url-scraper/${body.id}`, { headers: headers() });
+      if (!polled.ok) break;
+      body = await polled.json();
     }
-    return "";
+
+    const data = body?.generatedJson?.data;
+    if (data && typeof data === "object") {
+      logLive(label, [{ title: sourceTitle || url, url, snippet: undefined }]);
+      return data as T;
+    }
+    logMiss(label);
+    return null;
   } catch (err) {
-    console.error(`[anakin] scrape "${url}" failed:`, err);
-    return "";
+    console.error(`[anakin] extract "${url}" failed:`, err);
+    logMiss(label);
+    return null;
+  }
+}
+
+export interface DeepResearch {
+  summary: string;
+  structuredData: Record<string, unknown> | null;
+}
+
+/**
+ * Anakin's multi-stage research pipeline: it refines the query, searches,
+ * scrapes citations and synthesises a report.
+ *
+ * It returns a prose summary and auto-schema'd structured data but **no
+ * citation list**, and it can surface figures several years stale, so it is
+ * only ever presented as uncited synthesis alongside separately-cited numbers
+ * — never as the basis for a figure the product asserts.
+ */
+export async function anakinDeepResearch(prompt: string): Promise<DeepResearch | null> {
+  const label = `deep research: ${prompt}`;
+  if (!API_KEY) {
+    logMiss(label);
+    return null;
+  }
+  try {
+    const submit = await withTimeout(
+      fetch(`${API_BASE}/agentic-search`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ prompt }),
+      }),
+      20_000,
+    );
+    if (!submit.ok) {
+      console.error(`[anakin] deep research failed to submit: HTTP ${submit.status}`);
+      logMiss(label);
+      return null;
+    }
+    const { job_id: jobId } = await submit.json();
+    if (!jobId) {
+      logMiss(label);
+      return null;
+    }
+
+    // Typically ~35s. Poll rather than hold one long request open.
+    for (let i = 0; i < 18; i++) {
+      await new Promise((r) => setTimeout(r, 5_000));
+      const res = await fetch(`${API_BASE}/agentic-search/${jobId}`, { headers: headers() });
+      if (!res.ok) continue;
+      const body = await res.json();
+      if (body?.status === "failed") break;
+      if (body?.status !== "completed") continue;
+
+      const generated = body?.generatedJson ?? {};
+      const summary = typeof generated.summary === "string" ? generated.summary : "";
+      if (!summary) break;
+      logLive(label, []);
+      return {
+        summary,
+        structuredData:
+          generated.structured_data && typeof generated.structured_data === "object"
+            ? (generated.structured_data as Record<string, unknown>)
+            : null,
+      };
+    }
+    logMiss(label);
+    return null;
+  } catch (err) {
+    console.error(`[anakin] deep research failed:`, err);
+    logMiss(label);
+    return null;
   }
 }
 
