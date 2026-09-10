@@ -5,15 +5,21 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Plan a Shipment" },
-  { href: "/ops", label: "Live Ops Room" },
+  { href: "/", label: "Watchlist" },
+  { href: "/plan", label: "Plan" },
+  { href: "/ops", label: "Incidents" },
 ] as const;
 
-/** Poll the ops backend for whether there's an unresolved incident, so the
- * nav can surface it ambiently from anywhere in the app. Silent no-op if the
- * backend is unreachable — this is a nice-to-have signal, not a hard dependency. */
-function useActiveIncident(): boolean {
-  const [active, setActive] = useState(false);
+/**
+ * Whether any tracked shipment currently has an open incident.
+ *
+ * Reads the watchlist rather than the global incident feed, so the dot means
+ * "something is happening to *your* shipment" rather than "something is
+ * happening somewhere". One poll, one endpoint — the Supabase pooler has a low
+ * client cap, so this deliberately doesn't grow into a per-shipment watcher.
+ */
+function useOpenIncidents(): number {
+  const [count, setCount] = useState(0);
 
   useEffect(() => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL;
@@ -22,19 +28,18 @@ function useActiveIncident(): boolean {
 
     const poll = async () => {
       try {
-        const res = await fetch(`${apiBase}/incidents/active`);
+        const res = await fetch(`${apiBase}/shipments`);
         if (!res.ok) {
-          if (!cancelled) setActive(false);
+          if (!cancelled) setCount(0);
           return;
         }
-        const data = await res.json();
-        // /incidents/active falls back to the latest incident overall when none
-        // are unresolved, so a 200 doesn't itself mean "active" — check the phase.
-        const phase = data?.incident?.phase;
-        const isUnresolved = Boolean(phase) && !["approved", "rejected", "completed"].includes(phase);
-        if (!cancelled) setActive(isUnresolved);
+        const rows: { open_incident_count?: number }[] = await res.json();
+        const open = rows.reduce((n, r) => n + (r.open_incident_count ?? 0), 0);
+        if (!cancelled) setCount(open);
       } catch {
-        if (!cancelled) setActive(false);
+        // The backend is a separate deployment and may be down; an ambient
+        // signal isn't worth surfacing an error for.
+        if (!cancelled) setCount(0);
       }
     };
 
@@ -46,12 +51,12 @@ function useActiveIncident(): boolean {
     };
   }, []);
 
-  return active;
+  return count;
 }
 
 export function Header() {
   const pathname = usePathname();
-  const hasActiveIncident = useActiveIncident();
+  const openIncidents = useOpenIncidents();
 
   return (
     <header className="border-b border-border bg-panel/60 backdrop-blur sticky top-0 z-30">
@@ -80,7 +85,12 @@ export function Header() {
         <div className="flex items-center gap-3 text-[11px] mono">
           <nav className="flex items-center gap-1">
             {NAV_ITEMS.map((item) => {
-              const isActive = pathname === item.href;
+              // Sub-routes should light their section: /shipments/3 belongs to
+              // the watchlist, /ops/12 to incidents.
+              const isActive =
+                item.href === "/"
+                  ? pathname === "/" || pathname.startsWith("/shipments")
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
                   key={item.href}
@@ -91,8 +101,11 @@ export function Header() {
                       : "border-border text-muted hover:text-foreground hover:border-accent/40"
                   }`}
                 >
-                  {item.href === "/ops" && hasActiveIncident && (
-                    <span className="size-1.5 rounded-full bg-danger animate-pulse" title="Unresolved incident" />
+                  {item.href === "/ops" && openIncidents > 0 && (
+                    <span
+                      className="size-1.5 rounded-full bg-danger animate-pulse"
+                      title={`${openIncidents} open incident${openIncidents > 1 ? "s" : ""} on your tracked shipments`}
+                    />
                   )}
                   {item.label}
                 </Link>
