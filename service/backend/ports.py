@@ -85,6 +85,42 @@ PORTS: list[Port] = [
 PORTS_BY_CODE: dict[str, Port] = {port.code: port for port in PORTS}
 
 
+# Free-text port names from the planning flow ("Los Angeles, USA", "Port of
+# Newark") have to resolve to one of the monitored port codes above before a
+# tracked shipment can ever be matched to an incident. A curated alias list is
+# the whole mechanism: no similarity scoring, no geographic proximity, and
+# emphatically no LLM — asking a model "does this mean LA/LB?" is exactly the
+# fabrication vector the no-fabricated-data rule exists to prevent.
+#
+# ponytail: substring match over a curated list. Fine for three ports; if this
+# list grows past a handful, qualify by country/state — "Long Beach, NY" would
+# currently resolve to la_lb.
+PORT_ALIASES: dict[str, list[str]] = {
+    "la_lb": ["los angeles", "long beach", "san pedro", "pola", "polb"],
+    "ny_nj": ["new york", "new jersey", "newark", "port elizabeth", "bayonne"],
+    "singapore": ["singapore", "psa singapore", "tuas"],
+}
+
+
+def resolve_port_code(*candidates: str | None) -> tuple[str, str, str] | None:
+    """Resolve the first candidate that names a monitored port.
+
+    Returns `(port_code, matched_alias, candidate_text)`, or None when nothing
+    matches — which is a normal, expected outcome, not an error: only three
+    ports are AIS-monitored, so most real lanes resolve to nothing and must be
+    shown as unmonitored rather than quietly attached to a nearby port.
+    """
+    for candidate in candidates:
+        if not candidate:
+            continue
+        haystack = candidate.casefold()
+        for code, aliases in PORT_ALIASES.items():
+            for alias in aliases:
+                if alias in haystack:
+                    return code, alias, candidate
+    return None
+
+
 def all_bounding_boxes() -> list[list[list[float]]]:
     """All monitored bboxes, shaped for the aisstream `BoundingBoxes` field."""
     return [port.aisstream_bbox for port in PORTS]

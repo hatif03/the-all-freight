@@ -175,6 +175,77 @@ class Incident(Base):
     decisions: Mapped[list[Decision]] = relationship(back_populates="incident")
     dossiers: Mapped[list[Dossier]] = relationship(back_populates="incident")
     messages: Mapped[list[RoomMessage]] = relationship(back_populates="incident")
+    shipment_links: Mapped[list[ShipmentIncidentLink]] = relationship(back_populates="incident")
+
+
+class TrackedShipment(Base):
+    """A planned shipment the user chose to keep watching.
+
+    This is the object that joins the two halves of the product: it's created
+    from a planning-flow analysis and it's what incidents get attributed to.
+    The `AnalysisResult` that produced it is stored verbatim in `analysis` so
+    the dashboard can be re-rendered after a refresh; the columns above it are
+    the only fields anything lists or matches on, which is why `GET /shipments`
+    can avoid selecting the blob at all.
+    """
+
+    __tablename__ = "tracked_shipments"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    product: Mapped[str] = mapped_column(String(512), nullable=False)
+    origin: Mapped[str] = mapped_column(String(255), nullable=False)
+    destination: Mapped[str] = mapped_column(String(255), nullable=False)
+    ship_date: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    mode: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    risk_score: Mapped[int] = mapped_column(default=0, nullable=False)
+
+    # The entry port as the analysis recommended it, verbatim, for display.
+    entry_port: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Resolved monitored-port code (ports.PORTS_BY_CODE), or NULL when this lane
+    # touches no AIS-monitored port. NULL can never match an incident, which is
+    # the honest outcome for most lanes — only three ports are watched.
+    port_code: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    port_match_field: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    port_match_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    analysis: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    incident_links: Mapped[list[ShipmentIncidentLink]] = relationship(
+        back_populates="shipment",
+        cascade="all, delete-orphan",
+    )
+
+
+class ShipmentIncidentLink(Base):
+    """Why a tracked shipment is shown against an incident.
+
+    A link table rather than a FK on the incident, because an incident is
+    discovered independently of any shipment and matches 0..N of them, while a
+    shipment accumulates incidents over its life. It also gives every
+    attribution somewhere to record its own `basis` — mirroring the
+    `AffectedParty` convention, and required by the no-fabricated-data rule: a
+    shipment is never shown as touched by an incident without a defensible,
+    stored reason.
+    """
+
+    __tablename__ = "shipment_incident_links"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    shipment_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("tracked_shipments.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    incident_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("incidents.id"), nullable=False, index=True)
+    match_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    inferred: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    basis: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    shipment: Mapped[TrackedShipment] = relationship(back_populates="incident_links")
+    incident: Mapped[Incident] = relationship(back_populates="shipment_links")
 
 
 class Participant(Base):
